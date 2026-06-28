@@ -1,28 +1,36 @@
-export const createProject = useCallback(async (
-  title: string, tipo: TipoTesis, norma: NormaType, userId: string
-) => {
-  const proj = await pb.collection('projects').create<PBProject>({
-    user: userId,
-    title,
-    tipo,
-    norma,
-    word_count: 0,
-    settings: { autoSaveInterval: 2, revisionEnabled: true, aiEnabled: true },
-  })
+import { useCallback } from 'react'
+import { pb } from '@/lib/pocketbase' // Asegúrate de que esta ruta sea donde inicializas tu PocketBase
+import { PBProject, PBSection, TipoTesis, NormaType, TIPOS_TESIS } from '@/types'
 
-  const template = TIPOS_TESIS[tipo]
-  let idx = 0
-  for (const fase of template.fases) {
-    for (const name of fase.items) {
-      await pb.collection('sections').create<PBSection>({
-        project: proj.id,
-        name,
-        fase: fase.fase,
-        order_index: idx++,
-        is_roman: fase.isRoman,
-        word_count: 0,
-      })
+export const useProject = () => {
+  const createProject = useCallback(async (
+    title: string, tipo: TipoTesis, norma: NormaType, userId: string
+  ) => {
+    const proj = await pb.collection('projects').create<PBProject>({
+      user: userId,
+      title,
+      tipo,
+      norma,
+      word_count: 0,
+      settings: { autoSaveInterval: 2, revisionEnabled: true, aiEnabled: true },
+    })
+
+    const template = TIPOS_TESIS[tipo]
+    let idx = 0
+    for (const fase of template.fases) {
+      for (const name of fase.items) {
+        await pb.collection('sections').create<PBSection>({
+          project: proj.id,
+          name,
+          fase: fase.fase,
+          order_index: idx++,
+          is_roman: fase.isRoman,
+          word_count: 0,
+        })
+      }
     }
-  }
-  return proj
-}, [])
+    return proj
+  }, [])
+
+  return { createProject }
+}
