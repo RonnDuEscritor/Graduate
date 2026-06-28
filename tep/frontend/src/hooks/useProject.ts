@@ -1,4 +1,4 @@
-const createProject = useCallback(async (
+export const createProject = useCallback(async (
   title: string, tipo: TipoTesis, norma: NormaType, userId: string
 ) => {
   const proj = await pb.collection('projects').create<PBProject>({
