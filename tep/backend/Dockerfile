@@ -10,9 +10,11 @@ RUN wget -q "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VE
     rm /tmp/pb.zip && \
     chmod +x /pb/pocketbase
 
-COPY pb_hooks/    /pb/pb_hooks/
+COPY pb_hooks/     /pb/pb_hooks/
 COPY pb_migrations/ /pb/pb_migrations/
+COPY start.sh      /pb/start.sh
+RUN chmod +x /pb/start.sh
 
 EXPOSE 8090
 
-CMD /pb/pocketbase serve --http=0.0.0.0:${PORT:-8090} --dir=/pb/pb_data
+CMD ["/pb/start.sh"]
