@@ -17,22 +17,25 @@ export default function Sidebar() {
   const { runRevision } = useRevision()
   const [tab, setTab] = useState<PanelTab>('structure')
 
+  // Always get structure from TIPOS_TESIS — never from DB sections
   const tipo = project ? TIPOS_TESIS[project.tipo] : null
-  const totalWords = sections.reduce((s, sec) => s + sec.word_count, 0)
+
+  // Build content map from DB sections (name → section)
+  const sectionByName = new Map(sections.map(s => [s.name, s]))
+
+  const totalWords    = sections.reduce((s, sec) => s + sec.word_count, 0)
+  const totalSections = tipo ? tipo.fases.reduce((acc, f) => acc + f.items.length, 0) : 0
   const filledSections = sections.filter(s => s.word_count > 0).length
-  const progress = sections.length ? Math.round(filledSections / sections.length * 100) : 0
+  const progress      = totalSections ? Math.round(filledSections / totalSections * 100) : 0
 
   const errorCount = revisionIssues.filter(i => i.level === 'error').length
   const warnCount  = revisionIssues.filter(i => i.level === 'warning').length
 
-  const handleTabRevision = () => {
-    setTab('revision')
-    runRevision()
-  }
-
-  const scrollToSection = (sectionId: string) => {
-    setActiveSection(sectionId)
-    const el = document.getElementById(`section-${sectionId}`)
+  const scrollToSection = (name: string) => {
+    const sec = sectionByName.get(name)
+    const id  = sec ? `section-${sec.id}` : `section-virtual-${name}`
+    setActiveSection(sec?.id ?? `virtual-${name}`)
+    const el = document.getElementById(id)
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
@@ -43,20 +46,22 @@ export default function Sidebar() {
       <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-brand-700/40 flex-shrink-0">
         <div className="w-8 h-8 rounded-lg bg-brand-700/50 border border-brand-600/30 flex items-center justify-center text-lg flex-shrink-0">🎓</div>
         <div className="min-w-0">
-          <div className="font-serif text-brand-100 text-sm font-semibold leading-tight">TesisEditor <span className="text-xs bg-gold text-brand-950 rounded px-1 font-bold">PRO</span></div>
+          <div className="font-serif text-brand-100 text-sm font-semibold leading-tight">
+            TesisEditor <span className="text-xs bg-gold text-brand-950 rounded px-1 font-bold">PRO</span>
+          </div>
           <div className="text-brand-500 text-xs">by RonnDu Corp.</div>
         </div>
       </div>
 
-      {/* Project info + norma selector */}
+      {/* Project + norma */}
       <div className="px-3.5 py-2.5 border-b border-brand-700/40 flex-shrink-0 space-y-2">
         <button onClick={() => navigate('/')}
           className="flex items-center gap-1.5 text-brand-400 hover:text-brand-200 text-xs transition-colors w-full text-left">
           <i className="ti ti-chevron-left text-xs" />
-          <span className="truncate">{project?.title ?? 'Volviendo…'}</span>
+          <span className="truncate">{project?.title ?? 'Dashboard'}</span>
         </button>
 
-        {/* Norma selector */}
+        {/* Norma */}
         <div>
           <p className="text-brand-600 text-xs mb-1 uppercase tracking-wider">Norma</p>
           <div className="flex gap-1">
@@ -77,7 +82,7 @@ export default function Sidebar() {
         {/* Progress */}
         <div>
           <div className="flex justify-between text-xs text-brand-500 mb-1">
-            <span>{filledSections}/{sections.length} secciones</span>
+            <span>{filledSections}/{totalSections} secciones</span>
             <span>{totalWords.toLocaleString('es')} palabras</span>
           </div>
           <div className="h-1.5 bg-brand-800 rounded-full overflow-hidden">
@@ -87,15 +92,18 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Panel tabs */}
+      {/* Tabs */}
       <div className="flex border-b border-brand-700/40 flex-shrink-0">
         {([
-          { id:'structure', icon:'ti-layout-list',   label:'Estructura' },
-          { id:'refs',      icon:'ti-books',          label:'Refs' },
-          { id:'revision',  icon:'ti-shield-check',   label:'Revisión', badge: errorCount + warnCount },
+          { id:'structure', icon:'ti-layout-list', label:'Estructura' },
+          { id:'refs',      icon:'ti-books',        label:'Refs' },
+          { id:'revision',  icon:'ti-shield-check', label:'Revisión', badge: errorCount + warnCount },
         ] as const).map(t => (
           <button key={t.id}
-            onClick={() => t.id === 'revision' ? handleTabRevision() : setTab(t.id as PanelTab)}
+            onClick={() => {
+              if (t.id === 'revision') { setTab('revision'); runRevision() }
+              else setTab(t.id as PanelTab)
+            }}
             className={cn(
               'flex-1 flex items-center justify-center gap-1 py-2 text-xs border-b-2 transition-all relative',
               tab === t.id ? 'text-gold border-gold' : 'text-brand-500 border-transparent hover:text-brand-300'
@@ -114,7 +122,7 @@ export default function Sidebar() {
       {/* Panel content */}
       <div className="flex-1 overflow-y-auto">
 
-        {/* STRUCTURE TAB */}
+        {/* STRUCTURE — always from TIPOS_TESIS */}
         {tab === 'structure' && tipo && (
           <div className="py-1">
             {tipo.fases.map(fase => (
@@ -125,12 +133,11 @@ export default function Sidebar() {
                   </p>
                 </div>
                 {fase.items.map(name => {
-                  const sec = sections.find(s => s.name === name)
-                  if (!sec) return null
-                  const isActive = sec.id === activeSectionId
-                  const hasCont  = sec.word_count > 0
+                  const sec      = sectionByName.get(name)
+                  const isActive = sec ? sec.id === activeSectionId : (`virtual-${name}` === activeSectionId)
+                  const hasCont  = sec ? sec.word_count > 0 : false
                   return (
-                    <button key={sec.id} onClick={() => scrollToSection(sec.id)}
+                    <button key={name} onClick={() => scrollToSection(name)}
                       className={cn(
                         'w-full flex items-start gap-2 px-3.5 py-1.5 text-left text-xs transition-all border-l-2',
                         isActive
@@ -143,7 +150,7 @@ export default function Sidebar() {
                       )} />
                       <span className="leading-tight">{name}</span>
                       {hasCont && (
-                        <span className="ml-auto text-brand-600 text-xs flex-shrink-0">{sec.word_count}</span>
+                        <span className="ml-auto text-brand-600 text-xs flex-shrink-0">{sec!.word_count}</span>
                       )}
                     </button>
                   )
@@ -157,7 +164,7 @@ export default function Sidebar() {
         {tab === 'revision' && <RevisionPanel />}
       </div>
 
-      {/* Save status + sign out */}
+      {/* Status bar */}
       <div className="px-3.5 py-2 border-t border-brand-700/40 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-1.5">
           <span className={cn('w-1.5 h-1.5 rounded-full', isSaving ? 'bg-gold animate-pulse' : 'bg-green-400')} />
