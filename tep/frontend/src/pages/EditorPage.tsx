@@ -4,12 +4,14 @@ import { useStore } from '@/store'
 import { useProject } from '@/hooks/useProject'
 import { useAuth } from '@/hooks/useAuth'
 import { TIPOS_TESIS, NORMAS } from '@/types'
-import { toRoman } from '@/lib/utils'
+import { toRoman, cn } from '@/lib/utils'
 import Sidebar       from '@/components/sidebar/Sidebar'
 import Toolbar       from '@/components/editor/Toolbar'
 import SectionEditor from '@/components/editor/SectionEditor'
 import AIPanel       from '@/components/ai/AIPanel'
 import ExportPanel   from '@/components/export/ExportPanel'
+
+const ZOOM_LEVELS = [0.6, 0.75, 0.9, 1.0, 1.15, 1.3]
 
 export default function EditorPage() {
   const { id }    = useParams<{ id: string }>()
@@ -21,6 +23,7 @@ export default function EditorPage() {
   const [loading,    setLoading]    = useState(true)
   const [showExport, setShowExport] = useState(false)
   const [error,      setError]      = useState('')
+  const [zoomIdx,    setZoomIdx]    = useState(3) // 1.0 default
 
   useEffect(() => {
     if (!id || !user) return
@@ -51,14 +54,12 @@ export default function EditorPage() {
 
   if (!project) return null
 
-  const tipo      = TIPOS_TESIS[project.tipo]
+  const tipo       = TIPOS_TESIS[project.tipo]
   const normaClass = NORMAS[norma].cssClass
+  const zoom        = ZOOM_LEVELS[zoomIdx]
 
-  // Build page number map â€” always from TIPOS_TESIS structure, not from DB sections
   let arPg = 1, romPg = 1
   const pageNums = new Map<string, string>()
-
-  // Build a map of sectionName â†’ PBSection (for saved content)
   const sectionByName = new Map(sections.map(s => [s.name, s]))
 
   tipo.fases.forEach(fase => {
@@ -77,14 +78,38 @@ export default function EditorPage() {
         {/* Top action bar */}
         <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-brand-100 flex-shrink-0">
           <span className="text-brand-300 text-xs font-medium truncate max-w-xs">{project.title}</span>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-3">
+            {/* Zoom controls */}
+            <div className="flex items-center gap-1 bg-brand-50 rounded-lg px-1 py-0.5">
+              <button onClick={() => setZoomIdx(i => Math.max(0, i - 1))}
+                disabled={zoomIdx === 0}
+                className="w-6 h-6 flex items-center justify-center rounded text-brand-500 hover:bg-white disabled:opacity-30 transition-all">
+                <i className="ti ti-minus text-xs" />
+              </button>
+              <span className="text-xs text-brand-500 w-10 text-center select-none">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button onClick={() => setZoomIdx(i => Math.min(ZOOM_LEVELS.length - 1, i + 1))}
+                disabled={zoomIdx === ZOOM_LEVELS.length - 1}
+                className="w-6 h-6 flex items-center justify-center rounded text-brand-500 hover:bg-white disabled:opacity-30 transition-all">
+                <i className="ti ti-plus text-xs" />
+              </button>
+              <button onClick={() => setZoomIdx(3)}
+                className="w-6 h-6 flex items-center justify-center rounded text-brand-400 hover:bg-white transition-all"
+                title="Restablecer zoom">
+                <i className="ti ti-zoom-reset text-xs" />
+              </button>
+            </div>
+
             <button
               onClick={() => setAiPanel(!aiPanelOpen)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
                 aiPanelOpen
                   ? 'bg-brand-500 text-white border-brand-500'
                   : 'border-brand-200 text-brand-500 hover:border-brand-400'
-              }`}>
+              )}>
               <i className="ti ti-brain text-sm" />
               Asesor IA
             </button>
@@ -100,11 +125,9 @@ export default function EditorPage() {
         <Toolbar />
 
         <div className="flex-1 flex overflow-hidden">
-          {/* Document area â€” renders ALL sections from TIPOS_TESIS structure */}
-          <div className="flex-1 overflow-y-auto bg-[#E8E4F0] py-8 px-4">
+          <div className="flex-1 overflow-y-auto overflow-x-auto bg-[#E8E4F0] py-8 px-4">
             {tipo.fases.map(fase =>
               fase.items.map(name => {
-                // Use saved section if exists, otherwise create a virtual one
                 const savedSection = sectionByName.get(name)
                 const sectionId = savedSection?.id ?? `virtual-${name}`
                 const content   = savedSection?.content ?? null
@@ -123,6 +146,7 @@ export default function EditorPage() {
                     tesisTitulo={project.title}
                     normaClass={normaClass}
                     projectId={project.id}
+                    zoom={zoom}
                   />
                 )
               })
