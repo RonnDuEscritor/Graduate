@@ -22,10 +22,10 @@ export default function Sidebar() {
   const tipo = project ? TIPOS_TESIS[project.tipo] : null
   const sectionByName = new Map(sections.map(s => [s.name, s]))
 
-  const totalWords    = sections.reduce((s, sec) => s + sec.word_count, 0)
-  const totalSections = tipo ? tipo.fases.reduce((acc, f) => acc + f.items.length, 0) : 0
+  const totalWords     = sections.reduce((s, sec) => s + sec.word_count, 0)
+  const totalSections  = tipo ? tipo.fases.reduce((acc, f) => acc + f.items.length, 0) : 0
   const filledSections = sections.filter(s => s.word_count > 0).length
-  const progress      = totalSections ? Math.round(filledSections / totalSections * 100) : 0
+  const progress       = totalSections ? Math.round(filledSections / totalSections * 100) : 0
 
   const errorCount = revisionIssues.filter(i => i.level === 'error').length
   const warnCount  = revisionIssues.filter(i => i.level === 'warning').length
@@ -43,12 +43,13 @@ export default function Sidebar() {
 
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-brand-700/40 flex-shrink-0">
-        <div className="w-9 h-9 rounded-lg bg-brand-700/40 border border-brand-600/30 flex items-center justify-center flex-shrink-0 overflow-hidden p-1">
+        <div className="w-9 h-9 rounded-lg bg-white/10 border border-brand-600/30 flex items-center justify-center flex-shrink-0 overflow-hidden p-1">
           <img src={LOGO_SRC} alt="Graduate" className="w-full h-full object-contain" />
         </div>
         <div className="min-w-0">
           <div className="font-serif text-brand-100 text-base font-semibold leading-tight">
-            Graduate <span className="text-xs bg-gold text-brand-950 rounded px-1 font-bold align-middle">PRO</span>
+            Graduate{' '}
+            <span className="text-xs bg-gold text-brand-950 rounded px-1 font-bold align-middle">PRO</span>
           </div>
           <div className="text-brand-500 text-xs">by RonnDu Corp.</div>
         </div>
@@ -85,26 +86,32 @@ export default function Sidebar() {
             <span>{totalWords.toLocaleString('es')} palabras</span>
           </div>
           <div className="h-1.5 bg-brand-800 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-brand-400 to-gold transition-all duration-500 rounded-full"
-              style={{ width: `${progress}%` }} />
+            <div
+              className="h-full bg-gradient-to-r from-brand-400 to-gold transition-all duration-500 rounded-full"
+              style={{ width: `${progress}%` }}
+            />
           </div>
         </div>
       </div>
 
+      {/* Tabs */}
       <div className="flex border-b border-brand-700/40 flex-shrink-0">
         {([
-          { id:'structure', icon:'ti-layout-list', label:'Estructura' },
-          { id:'refs',      icon:'ti-books',        label:'Refs' },
-          { id:'revision',  icon:'ti-shield-check', label:'RevisiÃ³n', badge: errorCount + warnCount },
+          { id: 'structure', icon: 'ti-layout-list',  label: 'Estructura' },
+          { id: 'refs',      icon: 'ti-books',         label: 'Refs' },
+          { id: 'revision',  icon: 'ti-shield-check',  label: 'Revision', badge: errorCount + warnCount },
         ] as const).map(t => (
-          <button key={t.id}
+          <button
+            key={t.id}
             onClick={() => {
               if (t.id === 'revision') { setTab('revision'); runRevision() }
               else setTab(t.id as PanelTab)
             }}
             className={cn(
               'flex-1 flex items-center justify-center gap-1 py-2 text-xs border-b-2 transition-all relative',
-              tab === t.id ? 'text-gold border-gold' : 'text-brand-500 border-transparent hover:text-brand-300'
+              tab === t.id
+                ? 'text-gold border-gold'
+                : 'text-brand-500 border-transparent hover:text-brand-300'
             )}>
             <i className={`ti ${t.icon} text-sm`} />
             <span className="hidden sm:inline">{t.label}</span>
@@ -117,22 +124,29 @@ export default function Sidebar() {
         ))}
       </div>
 
+      {/* Panel content */}
       <div className="flex-1 overflow-y-auto">
+
+        {/* STRUCTURE — always rendered from TIPOS_TESIS */}
         {tab === 'structure' && tipo && (
           <div className="py-1">
             {tipo.fases.map(fase => (
               <div key={fase.fase}>
                 <div className="px-3.5 pt-3 pb-1">
                   <p className="text-brand-600 text-xs font-medium uppercase tracking-wider">
-                    {fase.isRoman ? '(i,iiâ€¦) ' : '(1,2â€¦) '}{fase.fase}
+                    {fase.isRoman ? '(i,ii) ' : '(1,2) '}{fase.fase}
                   </p>
                 </div>
                 {fase.items.map(name => {
                   const sec      = sectionByName.get(name)
-                  const isActive = sec ? sec.id === activeSectionId : (`virtual-${name}` === activeSectionId)
+                  const isActive = sec
+                    ? sec.id === activeSectionId
+                    : `virtual-${name}` === activeSectionId
                   const hasCont  = sec ? sec.word_count > 0 : false
                   return (
-                    <button key={name} onClick={() => scrollToSection(name)}
+                    <button
+                      key={name}
+                      onClick={() => scrollToSection(name)}
                       className={cn(
                         'w-full flex items-start gap-2 px-3.5 py-1.5 text-left text-xs transition-all border-l-2',
                         isActive
@@ -145,7 +159,9 @@ export default function Sidebar() {
                       )} />
                       <span className="leading-tight">{name}</span>
                       {hasCont && (
-                        <span className="ml-auto text-brand-600 text-xs flex-shrink-0">{sec!.word_count}</span>
+                        <span className="ml-auto text-brand-600 text-xs flex-shrink-0">
+                          {sec!.word_count}
+                        </span>
                       )}
                     </button>
                   )
@@ -159,11 +175,15 @@ export default function Sidebar() {
         {tab === 'revision' && <RevisionPanel />}
       </div>
 
+      {/* Status bar */}
       <div className="px-3.5 py-2 border-t border-brand-700/40 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-1.5">
-          <span className={cn('w-1.5 h-1.5 rounded-full', isSaving ? 'bg-gold animate-pulse' : 'bg-green-400')} />
+          <span className={cn(
+            'w-1.5 h-1.5 rounded-full',
+            isSaving ? 'bg-gold animate-pulse' : 'bg-green-400'
+          )} />
           <span className="text-brand-600 text-xs">
-            {isSaving ? 'Guardandoâ€¦' : lastSaved ? relativeTime(lastSaved) : 'Listo'}
+            {isSaving ? 'Guardando...' : lastSaved ? relativeTime(lastSaved) : 'Listo'}
           </span>
         </div>
         <button onClick={signOut} className="text-brand-600 hover:text-brand-400 text-xs transition-colors">
