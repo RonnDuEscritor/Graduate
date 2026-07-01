@@ -18,9 +18,9 @@ export default function DashboardPage() {
   const [showNew, setShowNew]   = useState(false)
   const [creating, setCreating] = useState(false)
 
-  const [title,   setTitle]  = useState('')
-  const [tipo,    setTipo]   = useState<TipoTesis>(0)
-  const [norma,   setNorma]  = useState<NormaType>('apa')
+  const [title, setTitle] = useState('')
+  const [tipo,  setTipo]  = useState<TipoTesis>(0)
+  const [norma, setNorma] = useState<NormaType>('apa')
 
   useEffect(() => {
     listProjects().then(p => { setProjects(p); setLoading(false) }).catch(console.error)
@@ -37,14 +37,15 @@ export default function DashboardPage() {
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!confirm('Â¿Eliminar este proyecto? Esta acciÃ³n no se puede deshacer.')) return
+    if (!confirm('Eliminar este proyecto? Esta accion no se puede deshacer.')) return
     await deleteProject(id)
     setProjects(p => p.filter(x => x.id !== id))
   }
 
+  const TIPO_ICONS = ['(Inv)', '(Proy)', '(Rev)']
+
   return (
     <div className="h-full flex flex-col bg-brand-950">
-      {/* Header */}
       <header className="flex items-center justify-between px-6 py-3 bg-brand-900 border-b border-brand-800">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-brand-800/60 border border-brand-700/40 flex items-center justify-center p-1.5">
@@ -75,18 +76,18 @@ export default function DashboardPage() {
             </div>
             <button onClick={() => setShowNew(true)}
               className="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors">
-              <i className="ti ti-plus text-base" /> Nueva tesis
+              + Nueva tesis
             </button>
           </div>
 
           {loading ? (
-            <div className="text-center py-16 text-brand-500 text-sm">Cargando proyectosâ€¦</div>
+            <div className="text-center py-16 text-brand-500 text-sm">Cargando proyectos...</div>
           ) : projects.length === 0 ? (
             <div className="text-center py-16 border border-dashed border-brand-800 rounded-2xl">
               <div className="w-16 h-16 mx-auto mb-3 opacity-40">
                 <img src={LOGO_SRC} alt="" className="w-full h-full object-contain" />
               </div>
-              <p className="text-brand-400 text-sm mb-4">No tienes proyectos aÃºn</p>
+              <p className="text-brand-400 text-sm mb-4">No tienes proyectos aun</p>
               <button onClick={() => setShowNew(true)}
                 className="bg-brand-500 hover:bg-brand-600 text-white rounded-lg px-5 py-2 text-sm font-medium transition-colors">
                 Crear mi primera tesis
@@ -98,10 +99,12 @@ export default function DashboardPage() {
                 <div key={p.id} onClick={() => navigate(`/editor/${p.id}`)}
                   className="group bg-brand-900 border border-brand-800 hover:border-brand-500 rounded-xl p-4 cursor-pointer transition-all hover:shadow-lg hover:shadow-brand-950/50 animate-fadeIn">
                   <div className="flex items-start justify-between mb-3">
-                    <span className="text-2xl">{['ðŸ”¬','âš™ï¸','ðŸ“–'][p.tipo]}</span>
+                    <div className="w-8 h-8 rounded-lg bg-brand-700/50 flex items-center justify-center">
+                      <img src={LOGO_SRC} alt="" className="w-5 h-5 object-contain opacity-80" />
+                    </div>
                     <button onClick={e => handleDelete(p.id, e)}
-                      className="opacity-0 group-hover:opacity-100 text-brand-600 hover:text-red-400 transition-all">
-                      <i className="ti ti-trash text-sm" />
+                      className="opacity-0 group-hover:opacity-100 text-brand-600 hover:text-red-400 transition-all text-xs">
+                      <i className="ti ti-trash" />
                     </button>
                   </div>
                   <h3 className="font-serif text-brand-100 font-medium text-sm mb-1 line-clamp-2">{p.title}</h3>
@@ -124,15 +127,13 @@ export default function DashboardPage() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-brand-900 border border-brand-700 rounded-2xl p-6 w-full max-w-md animate-fadeIn">
             <h3 className="font-serif text-brand-100 text-lg font-medium mb-5">Nueva tesis</h3>
-
             <div className="space-y-4">
               <div>
-                <label className="block text-xs text-brand-400 mb-1">TÃ­tulo de la tesis</label>
+                <label className="block text-xs text-brand-400 mb-1">Titulo de la tesis</label>
                 <input value={title} onChange={e => setTitle(e.target.value)}
                   className="w-full bg-brand-800 border border-brand-600 rounded-lg px-3 py-2 text-sm text-brand-100 outline-none focus:border-brand-400"
-                  placeholder="ej: AnÃ¡lisis del impacto deâ€¦" autoFocus />
+                  placeholder="Analisis del impacto de..." autoFocus />
               </div>
-
               <div>
                 <label className="block text-xs text-brand-400 mb-1">Tipo de tesis</label>
                 <select value={tipo} onChange={e => setTipo(Number(e.target.value) as TipoTesis)}
@@ -142,9 +143,8 @@ export default function DashboardPage() {
                   ))}
                 </select>
               </div>
-
               <div>
-                <label className="block text-xs text-brand-400 mb-1">Norma de citaciÃ³n</label>
+                <label className="block text-xs text-brand-400 mb-1">Norma de citacion</label>
                 <div className="flex gap-2">
                   {(['libre','apa','vancouver'] as NormaType[]).map(n => (
                     <button key={n} onClick={() => setNorma(n)}
@@ -160,7 +160,6 @@ export default function DashboardPage() {
                 <p className="text-brand-600 text-xs mt-1">{NORMAS[norma].desc}</p>
               </div>
             </div>
-
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowNew(false)}
                 className="flex-1 py-2 rounded-lg text-sm border border-brand-700 text-brand-400 hover:text-brand-200 transition-colors">
@@ -168,7 +167,7 @@ export default function DashboardPage() {
               </button>
               <button onClick={handleCreate} disabled={!title.trim() || creating}
                 className="flex-1 py-2 rounded-lg text-sm bg-brand-500 hover:bg-brand-600 text-white font-medium transition-colors disabled:opacity-50">
-                {creating ? 'Creandoâ€¦' : 'Crear proyecto'}
+                {creating ? 'Creando...' : 'Crear proyecto'}
               </button>
             </div>
           </div>
