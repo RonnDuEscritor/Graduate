@@ -79,3 +79,21 @@
 /* ── ANIMATIONS ─────────────────────────────────────────── */
 @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
 .animate-fadeIn { animation:fadeIn .2s ease; }
+/* ── LANGUAGETOOL GRAMMAR HIGHLIGHTS ──────────────────────── */
+/* Paste this at the END of your src/index.css file */
+
+.lt-spelling {
+  text-decoration: underline wavy #ef4444;
+  text-decoration-skip-ink: none;
+  cursor: pointer;
+}
+.lt-grammar {
+  text-decoration: underline wavy #f97316;
+  text-decoration-skip-ink: none;
+  cursor: pointer;
+}
+.lt-style {
+  text-decoration: underline wavy #3b82f6;
+  text-decoration-skip-ink: none;
+  cursor: pointer;
+}
