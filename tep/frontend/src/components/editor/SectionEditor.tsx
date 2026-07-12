@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -10,9 +10,14 @@ import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Placeholder from '@tiptap/extension-placeholder'
+import { Extension, Mark } from '@tiptap/core'
+import { Plugin, PluginKey } from 'prosemirror-state'
+import { Decoration, DecorationSet } from 'prosemirror-view'
 import { pb } from '@/lib/pb'
 import { useStore } from '@/store'
 import { countWords } from '@/lib/utils'
+import { useLanguageTool } from '@/hooks/useLanguageTool'
+import type { LTMatch } from '@/hooks/useLanguageTool'
 import type { TiptapDoc } from '@/types'
 
 interface SectionEditorProps {
@@ -27,17 +32,84 @@ interface SectionEditorProps {
   normaClass:  string
   projectId:   string
   zoom:        number
+  onGrammarResults?: (matches: LTMatch[], sectionId: string) => void
+}
+
+// ProseMirror plugin key for grammar decorations
+const grammarPluginKey = new PluginKey('grammar')
+
+// Build DecorationSet from LT matches
+function buildDecorations(doc: any, matches: LTMatch[]): DecorationSet {
+  const decorations: Decoration[] = []
+  const text = doc.textContent as string
+
+  matches.forEach(match => {
+    const from = match.offset + 1 // ProseMirror is 1-indexed
+    const to   = from + match.length
+    if (from < 1 || to > doc.content.size) return
+
+    const catId = match.rule?.category?.id ?? ''
+    let cls = 'lt-grammar'
+    if (catId.includes('TYPO') || match.rule?.issueType === 'misspelling') cls = 'lt-spelling'
+    else if (catId.includes('STYLE')) cls = 'lt-style'
+
+    try {
+      decorations.push(
+        Decoration.inline(from, to, {
+          class: cls,
+          title: match.shortMessage || match.message,
+        })
+      )
+    } catch (_) {}
+  })
+
+  return DecorationSet.create(doc, decorations)
+}
+
+// Tiptap extension for grammar highlighting
+function createGrammarExtension(getMatches: () => LTMatch[]) {
+  return Extension.create({
+    name: 'grammarHighlight',
+    addProseMirrorPlugins() {
+      return [
+        new Plugin({
+          key: grammarPluginKey,
+          state: {
+            init(_, { doc }) {
+              return buildDecorations(doc, getMatches())
+            },
+            apply(tr, old, _, newState) {
+              if (tr.docChanged) {
+                return buildDecorations(newState.doc, getMatches())
+              }
+              const meta = tr.getMeta(grammarPluginKey)
+              if (meta) return buildDecorations(newState.doc, meta)
+              return old
+            },
+          },
+          props: {
+            decorations(state) {
+              return grammarPluginKey.getState(state)
+            },
+          },
+        }),
+      ]
+    },
+  })
 }
 
 export default function SectionEditor({
   sectionId, sectionName, fase,
-  content, pageNum, tesisTitulo, normaClass, projectId, zoom
+  content, pageNum, tesisTitulo, normaClass, projectId, zoom,
+  onGrammarResults,
 }: SectionEditorProps) {
   const { activeSectionId, setActiveSection, saveSectionContent, setSaving, setLastSaved } = useStore()
   const isActive  = activeSectionId === sectionId
   const isVirtual = sectionId.startsWith('virtual-')
   const pbIdRef   = useRef<string | null>(isVirtual ? null : sectionId)
-  const editorRef = useRef<ReturnType<typeof useEditor> | null>(null)
+  const matchesRef = useRef<LTMatch[]>([])
+
+  const { scheduleCheck } = useLanguageTool()
 
   const editor = useEditor({
     extensions: [
@@ -45,26 +117,41 @@ export default function SectionEditor({
       Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       TextStyle,
-      Image.configure({ inline: false, HTMLAttributes: { class: 'rounded-md max-w-full' } }),
+      Image.configure({ inline: false }),
       Table.configure({ resizable: true }),
       TableRow, TableCell, TableHeader,
       Placeholder.configure({
-        placeholder: `Escribe aquÃ­ el contenido de "${sectionName}"â€¦`,
+        placeholder: `Escribe el contenido de "${sectionName}"...`,
         emptyEditorClass: 'is-editor-empty',
       }),
+      createGrammarExtension(() => matchesRef.current),
     ],
     content: (content as TiptapDoc) ?? undefined,
     onUpdate: ({ editor }) => {
       const json = editor.getJSON() as TiptapDoc
       const wc   = countWords(json as any)
       handleSave(json, wc)
+
+      // Schedule grammar check
+      const text = editor.getText()
+      scheduleCheck(text, (newMatches) => {
+        matchesRef.current = newMatches
+        // Update decorations
+        const { state, view } = editor
+        if (view) {
+          const tr = state.tr.setMeta(grammarPluginKey, newMatches)
+          view.dispatch(tr)
+        }
+        // Notify parent
+        if (onGrammarResults) {
+          onGrammarResults(newMatches, pbIdRef.current ?? sectionId)
+        }
+      }, 2000)
     },
     editorProps: { attributes: { class: 'tiptap' } },
   })
 
-  editorRef.current = editor
-
-  // Save â€” creates PB record if virtual (first write), updates if exists
+  // Save handler
   const handleSave = useCallback(async (json: TiptapDoc, wc: number) => {
     if (!pbIdRef.current) {
       setSaving(true)
@@ -73,7 +160,7 @@ export default function SectionEditor({
           project:     projectId,
           name:        sectionName,
           fase:        fase,
-          order_index: 1, // avoid Nonzero rejection â€” order doesn't matter, sidebar uses TIPOS_TESIS order
+          order_index: 1,
           word_count:  wc,
           content:     json,
         })
@@ -90,7 +177,7 @@ export default function SectionEditor({
     }
   }, [projectId, sectionName, fase, saveSectionContent, setSaving, setLastSaved])
 
-  // Manual save (Ctrl+S or toolbar button)
+  // Manual save
   useEffect(() => {
     const handler = () => {
       if (!isActive || !editor) return
@@ -102,16 +189,16 @@ export default function SectionEditor({
     return () => window.removeEventListener('manual-save', handler)
   }, [isActive, editor, handleSave])
 
-  // Keyboard shortcut Ctrl+S
+  // Ctrl+S
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's' && isActive) {
         e.preventDefault()
         window.dispatchEvent(new CustomEvent('manual-save'))
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [isActive])
 
   // Expose editor to toolbar
@@ -123,7 +210,7 @@ export default function SectionEditor({
     }
   }, [isActive, editor, sectionId])
 
-  // Listen for cite insertion
+  // Cite insertion
   const handleInsertCite = useCallback((e: Event) => {
     const { citeText, sectionId: targetId } = (e as CustomEvent).detail
     if (targetId !== (pbIdRef.current ?? sectionId) || !editor) return
@@ -137,21 +224,43 @@ export default function SectionEditor({
     return () => window.removeEventListener('insert-cite', handleInsertCite)
   }, [handleInsertCite])
 
+  // Apply fix from grammar panel
+  const handleApplyFix = useCallback((e: Event) => {
+    const { match, replacement, sectionId: targetId } = (e as CustomEvent).detail
+    if (targetId !== (pbIdRef.current ?? sectionId) || !editor) return
+    const { state } = editor
+    const text = state.doc.textContent
+    const from = match.offset + 1
+    const to   = from + match.length
+    if (from >= 1 && to <= state.doc.content.size) {
+      editor.chain().focus().deleteRange({ from, to }).insertContentAt(from, replacement).run()
+    }
+  }, [editor, sectionId])
+
+  useEffect(() => {
+    window.addEventListener('apply-grammar-fix', handleApplyFix)
+    return () => window.removeEventListener('apply-grammar-fix', handleApplyFix)
+  }, [handleApplyFix])
+
   const handleFocus = () => setActiveSection(pbIdRef.current ?? sectionId)
 
   return (
     <div
       id={`section-${sectionId}`}
       className={`a4-page ${normaClass} transition-shadow ${isActive ? 'ring-1 ring-brand-400/30' : ''}`}
-      style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', marginBottom: zoom !== 1 ? `${(1-zoom) * -1000}px` : '24px' }}>
+      style={{
+        transform: `scale(${zoom})`,
+        transformOrigin: 'top center',
+        marginBottom: zoom !== 1 ? `${(1 - zoom) * -800}px` : '24px'
+      }}>
 
       <div className="page-header">
         <span>{tesisTitulo}</span>
-        <span>TesisEditor Pro</span>
+        <span>Graduate Pro</span>
       </div>
 
       <span className="section-anchor-label">
-        {fase} â€º {sectionName}
+        {fase} &rsaquo; {sectionName}
       </span>
 
       <EditorContent editor={editor} onClick={handleFocus} onFocus={handleFocus} />
