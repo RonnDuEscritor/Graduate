@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useRevision } from '@/hooks/useRevision'
 import { signOut } from '@/hooks/useAuth'
-import { TIPOS_TESIS, NORMAS } from '@/types'
+import { TIPOS_TESIS, NORMAS, ACADEMIC_CHECKLIST, flattenFaseItems, flattenTipo } from '@/types'
 import { relativeTime, cn } from '@/lib/utils'
 import type { NormaType } from '@/types'
 import type { LTMatch } from '@/hooks/useLanguageTool'
@@ -33,12 +33,21 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
   const tipo           = project ? TIPOS_TESIS[project.tipo] : null
   const sectionByName  = new Map(sections.map(s => [s.name, s]))
   const totalWords     = sections.reduce((s, sec) => s + sec.word_count, 0)
-  const totalSections  = tipo ? tipo.fases.reduce((acc, f) => acc + f.items.length, 0) : 0
-  const filledSections = sections.filter(s => s.word_count > 0).length
+  const flatLeaves      = tipo ? flattenTipo(tipo).filter(i => !i.isChapterHeader) : []
+  const totalSections  = flatLeaves.length
+  const filledNames     = new Set(sections.filter(s => s.word_count > 0).map(s => s.name))
+  const filledSections = flatLeaves.filter(i => filledNames.has(i.name)).length
   const progress       = totalSections ? Math.round(filledSections / totalSections * 100) : 0
   const errorCount     = revisionIssues.filter(i => i.level === 'error').length
   const warnCount      = revisionIssues.filter(i => i.level === 'warning').length
   const grammarTotal   = grammarMatches.length
+
+  // Academic-progress checklist: which key academic elements have content
+  const checklist = project ? ACADEMIC_CHECKLIST[project.tipo] : []
+  const checklistStatus = checklist.map(item => ({
+    label: item.label,
+    done: sections.some(s => s.word_count > 0 && item.match.some(m => s.name.includes(m))),
+  }))
 
   const scrollToSection = (name: string) => {
     const sec = sectionByName.get(name)
@@ -81,11 +90,11 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
 
         <div>
           <p className="text-brand-600 text-xs mb-1 uppercase tracking-wider">Norma</p>
-          <div className="flex gap-1">
-            {(["libre","apa","vancouver"] as NormaType[]).map(n => (
+          <div className="flex flex-wrap gap-1">
+            {(["libre","apa","vancouver","ieee","chicago"] as NormaType[]).map(n => (
               <button key={n} onClick={() => setNorma(n)}
                 className={cn(
-                  "flex-1 text-xs py-1 rounded-md border transition-all",
+                  "flex-1 min-w-[30%] text-xs py-1 rounded-md border transition-all",
                   norma === n
                     ? "bg-brand-500 text-white border-brand-500"
                     : "bg-brand-800/60 text-brand-400 border-brand-700 hover:border-brand-500"
@@ -106,6 +115,22 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
               style={{ width: `${progress}%` }} />
           </div>
         </div>
+
+        {checklistStatus.length > 0 && (
+          <div>
+            <p className="text-brand-600 text-xs mb-1 uppercase tracking-wider">Avance académico</p>
+            <div className="flex flex-wrap gap-x-2 gap-y-1">
+              {checklistStatus.map(c => (
+                <span key={c.label} className={cn(
+                  "text-xs flex items-center gap-0.5",
+                  c.done ? "text-green-400" : "text-brand-600"
+                )}>
+                  {c.done ? "✔" : "✘"} {c.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex border-b border-brand-700/40 flex-shrink-0">
@@ -144,23 +169,27 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
                     {fase.isRoman ? "(i,ii) " : "(1,2) "}{fase.fase}
                   </p>
                 </div>
-                {fase.items.map(name => {
+                {flattenFaseItems(fase).map(item => {
+                  const { name, group, isChapterHeader } = item
                   const sec      = sectionByName.get(name)
                   const isActive = sec ? sec.id === activeSectionId : (`virtual-${name}` === activeSectionId)
                   const hasCont  = sec ? sec.word_count > 0 : false
                   return (
                     <button key={name} onClick={() => scrollToSection(name)}
                       className={cn(
-                        "w-full flex items-start gap-2 px-3.5 py-1.5 text-left text-xs transition-all border-l-2",
+                        "w-full flex items-start gap-2 py-1.5 text-left text-xs transition-all border-l-2",
+                        group ? "pl-6 pr-3.5" : "px-3.5",
+                        isChapterHeader && "font-medium",
                         isActive
                           ? "bg-brand-500/20 border-gold text-white"
                           : "border-transparent text-brand-400 hover:bg-brand-800/40 hover:text-brand-200"
                       )}>
                       <span className={cn(
-                        "w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0",
+                        "rounded-full mt-1 flex-shrink-0",
+                        group ? "w-1 h-1" : "w-1.5 h-1.5",
                         isActive ? "bg-gold" : hasCont ? "bg-brand-400" : "bg-brand-700"
                       )} />
-                      <span className="leading-tight">{name}</span>
+                      <span className="leading-tight">{group ? name.split(' · ')[1] : name}</span>
                       {hasCont && (
                         <span className="ml-auto text-brand-600 text-xs flex-shrink-0">{sec!.word_count}</span>
                       )}

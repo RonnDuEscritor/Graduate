@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useProject } from '@/hooks/useProject'
 import { useAuth } from '@/hooks/useAuth'
-import { TIPOS_TESIS, NORMAS } from '@/types'
+import { TIPOS_TESIS, NORMAS, flattenFaseItems } from '@/types'
 import { toRoman, cn } from '@/lib/utils'
 import type { LTMatch } from '@/hooks/useLanguageTool'
 import Sidebar       from '@/components/sidebar/Sidebar'
@@ -74,7 +74,7 @@ export default function EditorPage() {
   const sectionByName = new Map(sections.map(s => [s.name, s]))
 
   tipo.fases.forEach(fase => {
-    fase.items.forEach(name => {
+    flattenFaseItems(fase).forEach(({ name }) => {
       const pgLabel = fase.isRoman ? toRoman(romPg) : String(arPg)
       pageNums.set(name, pgLabel)
       if (fase.isRoman) romPg++; else arPg++
@@ -139,18 +139,21 @@ export default function EditorPage() {
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 overflow-y-auto overflow-x-auto bg-[#E8E4F0] py-8 px-4">
             {tipo.fases.map(fase =>
-              fase.items.map(name => {
+              flattenFaseItems(fase).map(({ name, group }) => {
                 const savedSection = sectionByName.get(name)
                 const sectionId    = savedSection?.id ?? `virtual-${name}`
                 const content      = savedSection?.content ?? null
                 const wordCount    = savedSection?.word_count ?? 0
+                const displayName  = group ? name.split(' · ')[1] : name
+                const faseLabel    = group ? `${fase.fase} › ${group}` : fase.fase
 
                 return (
                   <SectionEditor
                     key={sectionId}
                     sectionId={sectionId}
                     sectionName={name}
-                    fase={fase.fase}
+                    sectionDisplayName={displayName}
+                    fase={faseLabel}
                     isRoman={fase.isRoman}
                     content={content}
                     wordCount={wordCount}

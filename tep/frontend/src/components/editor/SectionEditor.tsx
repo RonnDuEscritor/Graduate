@@ -23,6 +23,7 @@ import type { TiptapDoc } from '@/types'
 interface SectionEditorProps {
   sectionId:   string
   sectionName: string
+  sectionDisplayName?: string
   fase:        string
   isRoman:     boolean
   content:     object | null
@@ -99,7 +100,7 @@ function createGrammarExtension(getMatches: () => LTMatch[]) {
 }
 
 export default function SectionEditor({
-  sectionId, sectionName, fase,
+  sectionId, sectionName, sectionDisplayName, fase,
   content, pageNum, tesisTitulo, normaClass, projectId, zoom,
   onGrammarResults,
 }: SectionEditorProps) {
@@ -108,6 +109,7 @@ export default function SectionEditor({
   const isVirtual = sectionId.startsWith('virtual-')
   const pbIdRef   = useRef<string | null>(isVirtual ? null : sectionId)
   const matchesRef = useRef<LTMatch[]>([])
+  const displayName = sectionDisplayName ?? sectionName
 
   const { scheduleCheck } = useLanguageTool()
 
@@ -121,7 +123,7 @@ export default function SectionEditor({
       Table.configure({ resizable: true }),
       TableRow, TableCell, TableHeader,
       Placeholder.configure({
-        placeholder: `Escribe el contenido de "${sectionName}"...`,
+        placeholder: `Escribe el contenido de "${displayName}"...`,
         emptyEditorClass: 'is-editor-empty',
       }),
       createGrammarExtension(() => matchesRef.current),
@@ -260,7 +262,7 @@ export default function SectionEditor({
       </div>
 
       <span className="section-anchor-label">
-        {fase} &rsaquo; {sectionName}
+        {fase} &rsaquo; {displayName}
       </span>
 
       <EditorContent editor={editor} onClick={handleFocus} onFocus={handleFocus} />

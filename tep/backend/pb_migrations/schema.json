@@ -7,7 +7,7 @@
       { "name": "user",        "type": "relation", "required": true,  "options": { "collectionId": "_pb_users_auth_", "cascadeDelete": true } },
       { "name": "title",       "type": "text",     "required": true,  "options": { "min": 1, "max": 200 } },
       { "name": "tipo",        "type": "number",   "required": true,  "options": { "min": 0, "max": 2 } },
-      { "name": "norma",       "type": "select",   "required": true,  "options": { "values": ["libre","apa","vancouver"] } },
+      { "name": "norma",       "type": "select",   "required": true,  "options": { "values": ["libre","apa","vancouver","ieee","chicago"] } },
       { "name": "institution", "type": "text",     "required": false, "options": {} },
       { "name": "author",      "type": "text",     "required": false, "options": {} },
       { "name": "tutor",       "type": "text",     "required": false, "options": {} },

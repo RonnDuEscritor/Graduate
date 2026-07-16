@@ -18,6 +18,8 @@
 .norma-apa      { font-family:'Times New Roman',Times,serif; font-size:12pt; line-height:2.0; }
 .norma-vancouver{ font-family:'Arial',sans-serif; font-size:11pt; line-height:1.5; text-align:justify; }
 .norma-libre    { font-family:'Inter',sans-serif; font-size:14px; line-height:1.85; }
+.norma-ieee     { font-family:'Times New Roman',Times,serif; font-size:10pt; line-height:1.15; text-align:justify; }
+.norma-chicago  { font-family:'Times New Roman',Times,serif; font-size:12pt; line-height:2.0; }
 
 .page-header {
   position:absolute; top:12mm; left:25.4mm; right:25.4mm;

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '@/store'
-import { TIPOS_TESIS, NORMAS } from '@/types'
+import { TIPOS_TESIS, NORMAS, flattenFaseItems } from '@/types'
 import { formatRef, toRoman } from '@/lib/utils'
 import type { PBSection, TiptapNode } from '@/types'
 
@@ -66,17 +66,18 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
     const AUTO_IDX = ['Índice general','Índice de tablas','Índice de figuras','Índice de tablas y figuras','Índice de cuadros comparativos']
 
     t.fases.forEach(fase => {
-      fase.items.forEach(name => {
+      flattenFaseItems(fase).forEach(({ name, group }) => {
         const sec = secMap.get(name)
         const pg  = fase.isRoman ? toRoman(romPg) : arPg
         if (fase.isRoman) romPg++; else arPg++
 
-        const isAutoIdx = AUTO_IDX.some(x => name.startsWith(x))
+        const isAutoIdx  = AUTO_IDX.some(x => name.startsWith(x))
+        const displayName = group ? name.split(' · ')[1] : name
         const content = sec?.content ? tiptapToHTML(sec.content as unknown as TiptapNode) : '<p style="color:#aaa;font-style:italic">Sin contenido.</p>'
 
         bodyHTML += `<div style="page-break-before:always">
           <div style="font-size:8pt;color:#999;text-align:right;margin-bottom:8pt">${pg}</div>
-          <h2>${name}</h2>
+          <h2>${group ? `${group} — ${displayName}` : displayName}</h2>
           ${isAutoIdx ? buildTOCHTML(t, sections) : content}
         </div>`
       })
@@ -124,10 +125,12 @@ ${bodyHTML}${bibHTML}
     let ar = 1, ro = 1
     t.fases.forEach(f => {
       html += `<div style="font-size:8pt;text-transform:uppercase;letter-spacing:.1em;color:#7B6FCC;margin:12pt 0 4pt;border-bottom:.5pt solid #ddd;padding-bottom:3pt">${f.fase}</div>`
-      f.items.forEach(name => {
+      flattenFaseItems(f).forEach(({ name, group }) => {
         const pg = f.isRoman ? toRoman(ro) : ar
         if (f.isRoman) ro++; else ar++
-        html += `<div style="display:flex;justify-content:space-between;padding:3pt 0;border-bottom:.5pt dotted #eee"><span>${name}</span><span style="color:#534AB7;font-weight:500">${pg}</span></div>`
+        const displayName = group ? name.split(' · ')[1] : name
+        const indent = group ? 'padding-left:14pt;color:#666' : ''
+        html += `<div style="display:flex;justify-content:space-between;padding:3pt 0;border-bottom:.5pt dotted #eee;${indent}"><span>${displayName}</span><span style="color:#534AB7;font-weight:500">${pg}</span></div>`
       })
     })
     return html + '</div>'

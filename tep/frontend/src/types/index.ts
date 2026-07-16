@@ -1,5 +1,5 @@
 // ── NORMAS ───────────────────────────────────────────────────
-export type NormaType = 'libre' | 'apa' | 'vancouver'
+export type NormaType = 'libre' | 'apa' | 'vancouver' | 'ieee' | 'chicago'
 export type TipoTesis = 0 | 1 | 2
 export type RefType   = 'libro' | 'articulo' | 'tesis' | 'web' | 'capitulo'
 export type IssueLevel = 'error' | 'warning' | 'info'
@@ -29,11 +29,62 @@ export const NORMAS: Record<NormaType, NormaConfig> = {
     desc:'Arial 11pt · interlineado 1.5 · citas numéricas [N]',
     citationFormat:'numbered', bibSort:'appearance',
   },
+  ieee: {
+    label:'IEEE', font:"'Times New Roman',Times,serif", fontSize:'10pt',
+    lineHeight:'1.15', textAlign:'justify', cssClass:'norma-ieee',
+    desc:'Times New Roman 10pt · interlineado sencillo · citas numéricas [N]',
+    citationFormat:'numbered', bibSort:'appearance',
+  },
+  chicago: {
+    label:'Chicago', font:"'Times New Roman',Times,serif", fontSize:'12pt',
+    lineHeight:'2.0', textAlign:'left', cssClass:'norma-chicago',
+    desc:'Times New Roman 12pt · interlineado 2.0 · estilo autor-fecha',
+    citationFormat:'author-year', bibSort:'alpha',
+  },
 }
 
 // ── THESIS STRUCTURE ─────────────────────────────────────────
-export interface TesisFase  { fase: string; isRoman: boolean; items: string[] }
+// An item can be a plain section name, or a chapter with guided sub-items.
+// The chapter itself remains an editable section (e.g. a short intro),
+// and each sub-item becomes its own guided, independently-tracked section.
+export interface TesisChapterGroup { chapter: string; subItems: string[] }
+export type TesisFaseItem = string | TesisChapterGroup
+export interface TesisFase  { fase: string; isRoman: boolean; items: TesisFaseItem[] }
 export interface TesisTipo  { nombre: string; fases: TesisFase[] }
+
+// Chapter "short code" used to build unique, readable sub-item names,
+// e.g. "Cap. I" + "Antecedentes" → "Cap. I · Antecedentes"
+export function chapterShortCode(chapter: string): string {
+  return chapter.split(' — ')[0].trim()
+}
+
+export function isChapterGroup(item: TesisFaseItem): item is TesisChapterGroup {
+  return typeof item !== 'string'
+}
+
+export function subItemName(chapter: string, subItem: string): string {
+  return `${chapterShortCode(chapter)} · ${subItem}`
+}
+
+// Flattens a fase's items into a linear list of leaf (editable) section
+// names, keeping track of which chapter (if any) each leaf belongs to.
+export interface FlatFaseItem { name: string; group?: string; isChapterHeader?: boolean }
+export function flattenFaseItems(fase: TesisFase): FlatFaseItem[] {
+  const out: FlatFaseItem[] = []
+  fase.items.forEach(item => {
+    if (typeof item === 'string') {
+      out.push({ name: item })
+    } else {
+      out.push({ name: item.chapter, isChapterHeader: true })
+      item.subItems.forEach(si => out.push({ name: subItemName(item.chapter, si), group: item.chapter }))
+    }
+  })
+  return out
+}
+
+export function flattenTipo(tipo: TesisTipo): FlatFaseItem[] {
+  return tipo.fases.flatMap(flattenFaseItems)
+}
 
 export const TIPOS_TESIS: TesisTipo[] = [
   { nombre:'Investigación científica', fases:[
@@ -43,9 +94,25 @@ export const TIPOS_TESIS: TesisTipo[] = [
       'Índice general','Índice de tablas','Índice de figuras',
     ]},
     { fase:'Cuerpo de la tesis', isRoman:false, items:[
-      'Introducción','Cap. I — El problema','Cap. II — Marco teórico',
-      'Cap. III — Marco metodológico','Cap. IV — Análisis de resultados',
-      'Cap. V — Discusión de resultados','Conclusiones y recomendaciones',
+      'Introducción',
+      { chapter:'Cap. I — El problema', subItems:[
+        'Antecedentes', 'Planteamiento del problema',
+        'Objetivos generales', 'Objetivos específicos', 'Justificación',
+      ]},
+      { chapter:'Cap. II — Marco teórico', subItems:[
+        'Antecedentes de la investigación', 'Bases teóricas', 'Definición de términos básicos',
+      ]},
+      { chapter:'Cap. III — Marco metodológico', subItems:[
+        'Tipo y diseño de investigación', 'Población y muestra',
+        'Hipótesis', 'Variables (operacionalización)', 'Técnicas e instrumentos',
+      ]},
+      { chapter:'Cap. IV — Análisis de resultados', subItems:[
+        'Presentación de resultados', 'Interpretación de resultados',
+      ]},
+      { chapter:'Cap. V — Discusión de resultados', subItems:[
+        'Discusión de resultados', 'Comparación con antecedentes',
+      ]},
+      'Conclusiones y recomendaciones',
     ]},
     { fase:'Fase final', isRoman:false, items:['Referencias bibliográficas','Anexos'] },
   ]},
@@ -55,10 +122,24 @@ export const TIPOS_TESIS: TesisTipo[] = [
       'Índice general','Índice de tablas y figuras',
     ]},
     { fase:'Cuerpo del proyecto', isRoman:false, items:[
-      'Introducción','Cap. I — Diagnóstico de la necesidad',
-      'Cap. II — Fundamentación tecnológica','Cap. III — Diseño y arquitectura',
-      'Cap. IV — Desarrollo e implementación',
-      'Cap. V — Pruebas, evaluación y factibilidad','Conclusiones y recomendaciones',
+      'Introducción',
+      { chapter:'Cap. I — Diagnóstico de la necesidad', subItems:[
+        'Antecedentes', 'Planteamiento de la necesidad',
+        'Objetivos generales', 'Objetivos específicos', 'Justificación',
+      ]},
+      { chapter:'Cap. II — Fundamentación tecnológica', subItems:[
+        'Antecedentes tecnológicos', 'Bases teóricas', 'Definición de términos técnicos',
+      ]},
+      { chapter:'Cap. III — Diseño y arquitectura', subItems:[
+        'Requerimientos', 'Arquitectura propuesta', 'Diagramas y modelos',
+      ]},
+      { chapter:'Cap. IV — Desarrollo e implementación', subItems:[
+        'Herramientas y tecnologías', 'Proceso de desarrollo', 'Resultados de la implementación',
+      ]},
+      { chapter:'Cap. V — Pruebas, evaluación y factibilidad', subItems:[
+        'Pruebas realizadas', 'Evaluación de resultados', 'Factibilidad técnica y económica',
+      ]},
+      'Conclusiones y recomendaciones',
     ]},
     { fase:'Fase final', isRoman:false, items:['Referencias bibliográficas','Anexos (código, manual)'] },
   ]},
@@ -68,14 +149,61 @@ export const TIPOS_TESIS: TesisTipo[] = [
       'Índice general','Índice de cuadros comparativos',
     ]},
     { fase:'Cuerpo analítico', isRoman:false, items:[
-      'Introducción','Cap. I — Justificación y alcance crítico',
-      'Cap. II — Metodología de búsqueda y selección',
-      'Cap. III — Desarrollo categorial / ejes temáticos',
-      'Cap. IV — Análisis comparativo / síntesis','Cap. V — Discusión teórica',
+      'Introducción',
+      { chapter:'Cap. I — Justificación y alcance crítico', subItems:[
+        'Antecedentes', 'Planteamiento del problema', 'Objetivos', 'Justificación', 'Alcance',
+      ]},
+      { chapter:'Cap. II — Metodología de búsqueda y selección', subItems:[
+        'Criterios de búsqueda', 'Fuentes consultadas', 'Criterios de inclusión y exclusión',
+      ]},
+      { chapter:'Cap. III — Desarrollo categorial / ejes temáticos', subItems:[
+        'Eje temático 1', 'Eje temático 2', 'Eje temático 3',
+      ]},
+      { chapter:'Cap. IV — Análisis comparativo / síntesis', subItems:[
+        'Cuadro comparativo', 'Síntesis crítica',
+      ]},
+      { chapter:'Cap. V — Discusión teórica', subItems:[
+        'Discusión', 'Vacíos identificados en la literatura',
+      ]},
       'Conclusiones y líneas de investigación futuras',
     ]},
     { fase:'Fase final', isRoman:false, items:['Referencias bibliográficas (extensa)','Anexos (matrices)'] },
   ]},
+]
+
+// ── ACADEMIC PROGRESS CHECKLIST ───────────────────────────────
+// Key academic elements tracked per thesis type (parallel array to
+// TIPOS_TESIS), matched against section names to build a checklist like:
+// Objetivos ✔ · Hipótesis ✔ · Variables ✘ · Metodología ✔ · ...
+export interface AcademicChecklistItem { label: string; match: string[] }
+export const ACADEMIC_CHECKLIST: AcademicChecklistItem[][] = [
+  // Investigación científica
+  [
+    { label:'Objetivos',     match:['Objetivos generales', 'Objetivos específicos'] },
+    { label:'Hipótesis',     match:['Hipótesis'] },
+    { label:'Variables',     match:['Variables'] },
+    { label:'Metodología',   match:['Tipo y diseño de investigación', 'Técnicas e instrumentos'] },
+    { label:'Resultados',    match:['Presentación de resultados', 'Interpretación de resultados'] },
+    { label:'Conclusiones',  match:['Conclusiones y recomendaciones'] },
+  ],
+  // Proyecto factible / técnico
+  [
+    { label:'Objetivos',            match:['Objetivos generales', 'Objetivos específicos'] },
+    { label:'Diseño / arquitectura',match:['Arquitectura propuesta', 'Diagramas y modelos'] },
+    { label:'Implementación',       match:['Proceso de desarrollo', 'Resultados de la implementación'] },
+    { label:'Pruebas',              match:['Pruebas realizadas'] },
+    { label:'Factibilidad',         match:['Factibilidad técnica y económica'] },
+    { label:'Conclusiones',         match:['Conclusiones y recomendaciones'] },
+  ],
+  // Revisión sistemática / documental
+  [
+    { label:'Objetivos',              match:['Objetivos'] },
+    { label:'Metodología de búsqueda',match:['Criterios de búsqueda', 'Fuentes consultadas'] },
+    { label:'Ejes temáticos',         match:['Eje temático'] },
+    { label:'Síntesis',               match:['Síntesis crítica', 'Cuadro comparativo'] },
+    { label:'Discusión',              match:['Discusión'] },
+    { label:'Conclusiones',           match:['Conclusiones y líneas de investigación futuras'] },
+  ],
 ]
 
 // ── POCKETBASE RECORDS ───────────────────────────────────────

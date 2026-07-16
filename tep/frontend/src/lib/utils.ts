@@ -57,15 +57,52 @@ export function formatRefVancouver(r: PBReference, num: number): string {
   return s.trimEnd() + '.'
 }
 
+export function formatRefIEEE(r: PBReference, num: number): string {
+  const init = r.initial ? `${r.initial} ` : ''
+  let s = `[${num}] ${init}${r.author}, "${r.title},"`
+  if (r.ref_type === 'articulo') {
+    if (r.journal) s += ` <em>${r.journal}</em>,`
+    if (r.volume)  s += ` vol. ${r.volume},`
+    if (r.issue)   s += ` no. ${r.issue},`
+    if (r.pages)   s += ` pp. ${r.pages},`
+  } else {
+    if (r.publisher) s += ` ${r.publisher},`
+  }
+  s += ` ${r.year}.`
+  if (r.doi) s += ` doi: ${r.doi.replace('https://doi.org/','')}.`
+  return s
+}
+
+export function formatRefChicago(r: PBReference): string {
+  const init = r.initial ? ` ${r.initial}` : ''
+  let s = `${r.author}${init}. ${r.year}.`
+  if (r.ref_type === 'articulo') {
+    s += ` "${r.title}."`
+    if (r.journal) s += ` <em>${r.journal}</em>`
+    if (r.volume)  s += ` ${r.volume}`
+    if (r.issue)   s += `, no. ${r.issue}`
+    if (r.pages)   s += `: ${r.pages}`
+  } else {
+    s += ` <em>${r.title}</em>.`
+    if (r.publisher) s += ` ${r.publisher}.`
+  }
+  const doiUrl = r.doi ? `https://doi.org/${r.doi.replace('https://doi.org/','')}` : r.url
+  if (doiUrl) s += ` ${doiUrl}.`
+  return s.trim()
+}
+
 export function formatRef(r: PBReference, norma: NormaType, num = 1): string {
-  return norma === 'vancouver' ? formatRefVancouver(r, num) : formatRefAPA(r)
+  if (norma === 'vancouver') return formatRefVancouver(r, num)
+  if (norma === 'ieee')      return formatRefIEEE(r, num)
+  if (norma === 'chicago')   return formatRefChicago(r)
+  return formatRefAPA(r)
 }
 
 // ── CITE TEXT ────────────────────────────────────────────────
 export function buildCiteText(
   ref: PBReference, norma: NormaType, num: number, page?: string
 ): string {
-  if (norma === 'vancouver') {
+  if (norma === 'vancouver' || norma === 'ieee') {
     return page ? `[${num}, p. ${page}]` : `[${num}]`
   }
   const last = ref.author.split(',')[0].trim().split(' ').pop() ?? ref.author
