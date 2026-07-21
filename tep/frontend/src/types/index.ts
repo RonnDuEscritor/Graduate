@@ -1,5 +1,5 @@
 // ── NORMAS ───────────────────────────────────────────────────
-export type NormaType = 'libre' | 'apa' | 'vancouver' | 'ieee' | 'chicago'
+export type NormaType = 'libre' | 'apa' | 'vancouver'
 export type TipoTesis = 0 | 1 | 2
 export type RefType   = 'libro' | 'articulo' | 'tesis' | 'web' | 'capitulo'
 export type IssueLevel = 'error' | 'warning' | 'info'
@@ -20,191 +20,122 @@ export const NORMAS: Record<NormaType, NormaConfig> = {
   apa: {
     label:'APA 7', font:"'Times New Roman',Times,serif", fontSize:'12pt',
     lineHeight:'2.0', textAlign:'left', cssClass:'norma-apa',
-    desc:'Times New Roman 12pt · interlineado 2.0 · márgenes 2.54cm',
+    desc:'Times New Roman 12pt - interlineado 2.0 - margenes 2.54cm',
     citationFormat:'author-year', bibSort:'alpha',
   },
   vancouver: {
     label:'Vancouver', font:"'Arial',sans-serif", fontSize:'11pt',
     lineHeight:'1.5', textAlign:'justify', cssClass:'norma-vancouver',
-    desc:'Arial 11pt · interlineado 1.5 · citas numéricas [N]',
+    desc:'Arial 11pt - interlineado 1.5 - citas numericas [N]',
     citationFormat:'numbered', bibSort:'appearance',
-  },
-  ieee: {
-    label:'IEEE', font:"'Times New Roman',Times,serif", fontSize:'10pt',
-    lineHeight:'1.15', textAlign:'justify', cssClass:'norma-ieee',
-    desc:'Times New Roman 10pt · interlineado sencillo · citas numéricas [N]',
-    citationFormat:'numbered', bibSort:'appearance',
-  },
-  chicago: {
-    label:'Chicago', font:"'Times New Roman',Times,serif", fontSize:'12pt',
-    lineHeight:'2.0', textAlign:'left', cssClass:'norma-chicago',
-    desc:'Times New Roman 12pt · interlineado 2.0 · estilo autor-fecha',
-    citationFormat:'author-year', bibSort:'alpha',
   },
 }
 
 // ── THESIS STRUCTURE ─────────────────────────────────────────
-// An item can be a plain section name, or a chapter with guided sub-items.
-// The chapter itself remains an editable section (e.g. a short intro),
-// and each sub-item becomes its own guided, independently-tracked section.
-export interface TesisChapterGroup { chapter: string; subItems: string[] }
-export type TesisFaseItem = string | TesisChapterGroup
-export interface TesisFase  { fase: string; isRoman: boolean; items: TesisFaseItem[] }
+// items is ALWAYS string[] - never objects
+export interface TesisFase  { fase: string; isRoman: boolean; items: string[] }
 export interface TesisTipo  { nombre: string; fases: TesisFase[] }
 
-// Chapter "short code" used to build unique, readable sub-item names,
-// e.g. "Cap. I" + "Antecedentes" → "Cap. I · Antecedentes"
-export function chapterShortCode(chapter: string): string {
-  return chapter.split(' — ')[0].trim()
-}
-
-export function isChapterGroup(item: TesisFaseItem): item is TesisChapterGroup {
-  return typeof item !== 'string'
-}
-
-export function subItemName(chapter: string, subItem: string): string {
-  return `${chapterShortCode(chapter)} · ${subItem}`
-}
-
-// Flattens a fase's items into a linear list of leaf (editable) section
-// names, keeping track of which chapter (if any) each leaf belongs to.
-export interface FlatFaseItem { name: string; group?: string; isChapterHeader?: boolean }
-export function flattenFaseItems(fase: TesisFase): FlatFaseItem[] {
-  const out: FlatFaseItem[] = []
-  fase.items.forEach(item => {
-    if (typeof item === 'string') {
-      out.push({ name: item })
-    } else {
-      out.push({ name: item.chapter, isChapterHeader: true })
-      item.subItems.forEach(si => out.push({ name: subItemName(item.chapter, si), group: item.chapter }))
-    }
-  })
-  return out
-}
-
-export function flattenTipo(tipo: TesisTipo): FlatFaseItem[] {
-  return tipo.fases.flatMap(flattenFaseItems)
-}
-
 export const TIPOS_TESIS: TesisTipo[] = [
-  { nombre:'Investigación científica', fases:[
+  { nombre:'Investigacion cientifica', fases:[
     { fase:'Fase preliminar', isRoman:true, items:[
-      'Portada oficial','Aprobación del jurado','Dedicatoria y agradecimientos',
-      'Resumen / Abstract','Palabras clave / Keywords',
-      'Índice general','Índice de tablas','Índice de figuras',
+      'Portada oficial','Aprobacion del jurado',
+      'Dedicatoria y agradecimientos','Resumen / Abstract',
+      'Palabras clave / Keywords','Indice general',
+      'Indice de tablas','Indice de figuras',
     ]},
     { fase:'Cuerpo de la tesis', isRoman:false, items:[
-      'Introducción',
-      { chapter:'Cap. I — El problema', subItems:[
-        'Antecedentes', 'Planteamiento del problema',
-        'Objetivos generales', 'Objetivos específicos', 'Justificación',
-      ]},
-      { chapter:'Cap. II — Marco teórico', subItems:[
-        'Antecedentes de la investigación', 'Bases teóricas', 'Definición de términos básicos',
-      ]},
-      { chapter:'Cap. III — Marco metodológico', subItems:[
-        'Tipo y diseño de investigación', 'Población y muestra',
-        'Hipótesis', 'Variables (operacionalización)', 'Técnicas e instrumentos',
-      ]},
-      { chapter:'Cap. IV — Análisis de resultados', subItems:[
-        'Presentación de resultados', 'Interpretación de resultados',
-      ]},
-      { chapter:'Cap. V — Discusión de resultados', subItems:[
-        'Discusión de resultados', 'Comparación con antecedentes',
-      ]},
+      'Introduccion','Cap. I -- El problema',
+      'Cap. II -- Marco teorico','Cap. III -- Marco metodologico',
+      'Cap. IV -- Analisis de resultados',
+      'Cap. V -- Discusion de resultados',
       'Conclusiones y recomendaciones',
     ]},
-    { fase:'Fase final', isRoman:false, items:['Referencias bibliográficas','Anexos'] },
+    { fase:'Fase final', isRoman:false, items:['Referencias bibliograficas','Anexos'] },
   ]},
-  { nombre:'Proyecto factible / técnico', fases:[
+  { nombre:'Proyecto factible / tecnico', fases:[
     { fase:'Fase preliminar', isRoman:true, items:[
-      'Portada, aprobación, dedicatoria','Resumen / Abstract y palabras clave',
-      'Índice general','Índice de tablas y figuras',
+      'Portada, aprobacion, dedicatoria',
+      'Resumen / Abstract y palabras clave',
+      'Indice general','Indice de tablas y figuras',
     ]},
     { fase:'Cuerpo del proyecto', isRoman:false, items:[
-      'Introducción',
-      { chapter:'Cap. I — Diagnóstico de la necesidad', subItems:[
-        'Antecedentes', 'Planteamiento de la necesidad',
-        'Objetivos generales', 'Objetivos específicos', 'Justificación',
-      ]},
-      { chapter:'Cap. II — Fundamentación tecnológica', subItems:[
-        'Antecedentes tecnológicos', 'Bases teóricas', 'Definición de términos técnicos',
-      ]},
-      { chapter:'Cap. III — Diseño y arquitectura', subItems:[
-        'Requerimientos', 'Arquitectura propuesta', 'Diagramas y modelos',
-      ]},
-      { chapter:'Cap. IV — Desarrollo e implementación', subItems:[
-        'Herramientas y tecnologías', 'Proceso de desarrollo', 'Resultados de la implementación',
-      ]},
-      { chapter:'Cap. V — Pruebas, evaluación y factibilidad', subItems:[
-        'Pruebas realizadas', 'Evaluación de resultados', 'Factibilidad técnica y económica',
-      ]},
+      'Introduccion','Cap. I -- Diagnostico de la necesidad',
+      'Cap. II -- Fundamentacion tecnologica',
+      'Cap. III -- Diseno y arquitectura',
+      'Cap. IV -- Desarrollo e implementacion',
+      'Cap. V -- Pruebas, evaluacion y factibilidad',
       'Conclusiones y recomendaciones',
     ]},
-    { fase:'Fase final', isRoman:false, items:['Referencias bibliográficas','Anexos (código, manual)'] },
+    { fase:'Fase final', isRoman:false, items:[
+      'Referencias bibliograficas',
+      'Anexos (codigo, manual, hojas tecnicas)',
+    ]},
   ]},
-  { nombre:'Revisión sistemática / documental', fases:[
+  { nombre:'Revision sistematica / documental', fases:[
     { fase:'Fase preliminar', isRoman:true, items:[
-      'Portada, aprobación, dedicatoria','Resumen / Abstract y palabras clave',
-      'Índice general','Índice de cuadros comparativos',
+      'Portada, aprobacion, dedicatoria',
+      'Resumen / Abstract y palabras clave',
+      'Indice general','Indice de cuadros comparativos',
     ]},
-    { fase:'Cuerpo analítico', isRoman:false, items:[
-      'Introducción',
-      { chapter:'Cap. I — Justificación y alcance crítico', subItems:[
-        'Antecedentes', 'Planteamiento del problema', 'Objetivos', 'Justificación', 'Alcance',
-      ]},
-      { chapter:'Cap. II — Metodología de búsqueda y selección', subItems:[
-        'Criterios de búsqueda', 'Fuentes consultadas', 'Criterios de inclusión y exclusión',
-      ]},
-      { chapter:'Cap. III — Desarrollo categorial / ejes temáticos', subItems:[
-        'Eje temático 1', 'Eje temático 2', 'Eje temático 3',
-      ]},
-      { chapter:'Cap. IV — Análisis comparativo / síntesis', subItems:[
-        'Cuadro comparativo', 'Síntesis crítica',
-      ]},
-      { chapter:'Cap. V — Discusión teórica', subItems:[
-        'Discusión', 'Vacíos identificados en la literatura',
-      ]},
-      'Conclusiones y líneas de investigación futuras',
+    { fase:'Cuerpo analitico', isRoman:false, items:[
+      'Introduccion','Cap. I -- Justificacion y alcance critico',
+      'Cap. II -- Metodologia de busqueda y seleccion',
+      'Cap. III -- Desarrollo categorial / ejes tematicos',
+      'Cap. IV -- Analisis comparativo / sintesis',
+      'Cap. V -- Discusion teorica',
+      'Conclusiones y lineas de investigacion futuras',
     ]},
-    { fase:'Fase final', isRoman:false, items:['Referencias bibliográficas (extensa)','Anexos (matrices)'] },
+    { fase:'Fase final', isRoman:false, items:[
+      'Referencias bibliograficas (extensa)',
+      'Anexos (matrices de extraccion de datos)',
+    ]},
   ]},
 ]
 
-// ── ACADEMIC PROGRESS CHECKLIST ───────────────────────────────
-// Key academic elements tracked per thesis type (parallel array to
-// TIPOS_TESIS), matched against section names to build a checklist like:
-// Objetivos ✔ · Hipótesis ✔ · Variables ✘ · Metodología ✔ · ...
-export interface AcademicChecklistItem { label: string; match: string[] }
-export const ACADEMIC_CHECKLIST: AcademicChecklistItem[][] = [
-  // Investigación científica
-  [
-    { label:'Objetivos',     match:['Objetivos generales', 'Objetivos específicos'] },
-    { label:'Hipótesis',     match:['Hipótesis'] },
-    { label:'Variables',     match:['Variables'] },
-    { label:'Metodología',   match:['Tipo y diseño de investigación', 'Técnicas e instrumentos'] },
-    { label:'Resultados',    match:['Presentación de resultados', 'Interpretación de resultados'] },
-    { label:'Conclusiones',  match:['Conclusiones y recomendaciones'] },
+// ── SUB-ITEMS GUIDANCE ───────────────────────────────────────
+// Separate from TIPOS_TESIS — used only for placeholder text in editor
+// Never iterated as JSX children
+export interface SubItem {
+  key:         string
+  label:       string
+  placeholder: string
+  required:    boolean
+  minWords:    number
+}
+
+export const SECTION_GUIDANCE: Record<string, SubItem[]> = {
+  'Cap. I -- El problema': [
+    { key:'antecedentes',    label:'Antecedentes del problema',    placeholder:'Presenta investigaciones previas relacionadas con el problema (minimo 3 antecedentes con autor, ano y hallazgos)', required:true,  minWords:150 },
+    { key:'planteamiento',   label:'Planteamiento del problema',   placeholder:'Describe el problema con datos y evidencias concretas que demuestren su existencia', required:true,  minWords:100 },
+    { key:'formulacion',     label:'Formulacion del problema',     placeholder:'Redacta la pregunta principal: Como influye X en Y en el contexto Z?', required:true,  minWords:15  },
+    { key:'obj_general',     label:'Objetivo general',             placeholder:'Objetivo general: [Verbo infinitivo] + [que] + [como] + [para que]. Ej: Determinar la influencia de X en Y...', required:true,  minWords:20  },
+    { key:'obj_especificos', label:'Objetivos especificos',        placeholder:'1. Identificar... 2. Describir... 3. Evaluar... (minimo 3 objetivos especificos)', required:true,  minWords:60  },
+    { key:'hipotesis',       label:'Hipotesis',                    placeholder:'Si X aumenta, entonces Y disminuye en el contexto Z. (Relaciona variable independiente con dependiente)', required:true,  minWords:30  },
+    { key:'variables',       label:'Variables de investigacion',   placeholder:'Variable independiente: [nombre] - Definicion conceptual: ... - Definicion operacional: ...\nVariable dependiente: [nombre] - ...', required:true, minWords:60 },
+    { key:'justificacion',   label:'Justificacion',                placeholder:'Justificacion teorica: ...\nJustificacion practica: ...\nJustificacion metodologica: ...', required:true, minWords:80 },
+    { key:'delimitacion',    label:'Delimitacion',                 placeholder:'Delimitacion espacial: [donde]\nDelimitacion temporal: [cuando]\nDelimitacion tematica: [que aspectos incluye y excluye]', required:true, minWords:40 },
   ],
-  // Proyecto factible / técnico
-  [
-    { label:'Objetivos',            match:['Objetivos generales', 'Objetivos específicos'] },
-    { label:'Diseño / arquitectura',match:['Arquitectura propuesta', 'Diagramas y modelos'] },
-    { label:'Implementación',       match:['Proceso de desarrollo', 'Resultados de la implementación'] },
-    { label:'Pruebas',              match:['Pruebas realizadas'] },
-    { label:'Factibilidad',         match:['Factibilidad técnica y económica'] },
-    { label:'Conclusiones',         match:['Conclusiones y recomendaciones'] },
+  'Cap. II -- Marco teorico': [
+    { key:'bases_teoricas',   label:'Bases teoricas',     placeholder:'Teoria 1: Segun [Autor] ([ano]), ... \nTeoria 2: [Autor] ([ano]) plantea que...', required:true, minWords:300 },
+    { key:'bases_legales',    label:'Bases legales',      placeholder:'Constitucion / Ley / Decreto que sustenta la investigacion', required:false, minWords:50  },
+    { key:'marco_conceptual', label:'Marco conceptual',   placeholder:'Termino 1: Segun [Autor] ([ano]) es...\nTermino 2: ...', required:true, minWords:150 },
+    { key:'estado_arte',      label:'Estado del arte',    placeholder:'Que se ha investigado sobre este tema? Que falta? Donde encaja este estudio?', required:true, minWords:150 },
   ],
-  // Revisión sistemática / documental
-  [
-    { label:'Objetivos',              match:['Objetivos'] },
-    { label:'Metodología de búsqueda',match:['Criterios de búsqueda', 'Fuentes consultadas'] },
-    { label:'Ejes temáticos',         match:['Eje temático'] },
-    { label:'Síntesis',               match:['Síntesis crítica', 'Cuadro comparativo'] },
-    { label:'Discusión',              match:['Discusión'] },
-    { label:'Conclusiones',           match:['Conclusiones y líneas de investigación futuras'] },
+  'Cap. III -- Marco metodologico': [
+    { key:'tipo_inv',      label:'Tipo de investigacion',   placeholder:'Esta investigacion es de tipo [descriptiva/explicativa/correlacional] porque... Segun [Autor] ([ano])...', required:true, minWords:50 },
+    { key:'diseno',        label:'Diseno de investigacion', placeholder:'El diseno es [experimental/no experimental/de campo/documental] porque...', required:true, minWords:50 },
+    { key:'poblacion',     label:'Poblacion',               placeholder:'La poblacion esta conformada por [numero] [sujetos] que [caracteristicas] ubicados en [lugar]', required:true, minWords:50 },
+    { key:'muestra',       label:'Muestra y muestreo',      placeholder:'La muestra es de [n] [sujetos] seleccionados mediante muestreo [tipo]. Formula aplicada: ...', required:true, minWords:60 },
+    { key:'tecnicas',      label:'Tecnicas e instrumentos', placeholder:'Tecnica: [encuesta/entrevista/observacion]\nInstrumento: [cuestionario/guia] con [n] items tipo [Likert/dicotomica]', required:true, minWords:80 },
+    { key:'validez',       label:'Validez y confiabilidad', placeholder:'Validez: sometido a juicio de [n] expertos que evaluaron...\nConfiabilidad: Alfa de Cronbach = [valor]', required:true, minWords:60 },
   ],
-]
+  'Conclusiones y recomendaciones': [
+    { key:'conclusiones',    label:'Conclusiones',         placeholder:'En relacion al objetivo 1 (determinar X), se concluye que...\nEn relacion al objetivo 2...', required:true,  minWords:100 },
+    { key:'recomendaciones', label:'Recomendaciones',      placeholder:'1. Se recomienda a [quien] que [que accion] con el fin de [para que]\n2. ...\n3. ...', required:true,  minWords:80  },
+    { key:'lineas_futuras',  label:'Lineas futuras',       placeholder:'Para futuras investigaciones se sugiere explorar...', required:false, minWords:40  },
+  ],
+}
 
 // ── POCKETBASE RECORDS ───────────────────────────────────────
 export interface PBProject {
