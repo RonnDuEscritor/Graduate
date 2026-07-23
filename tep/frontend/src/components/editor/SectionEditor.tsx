@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef, useState } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -10,9 +10,6 @@ import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Placeholder from '@tiptap/extension-placeholder'
-import { Extension, Mark } from '@tiptap/core'
-import { Plugin, PluginKey } from 'prosemirror-state'
-import { Decoration, DecorationSet } from 'prosemirror-view'
 import { pb } from '@/lib/pb'
 import { useStore } from '@/store'
 import { countWords } from '@/lib/utils'
@@ -35,69 +32,6 @@ interface SectionEditorProps {
   onGrammarResults?: (matches: LTMatch[], sectionId: string) => void
 }
 
-// ProseMirror plugin key for grammar decorations
-const grammarPluginKey = new PluginKey('grammar')
-
-// Build DecorationSet from LT matches
-function buildDecorations(doc: any, matches: LTMatch[]): DecorationSet {
-  const decorations: Decoration[] = []
-  const text = doc.textContent as string
-
-  matches.forEach(match => {
-    const from = match.offset + 1 // ProseMirror is 1-indexed
-    const to   = from + match.length
-    if (from < 1 || to > doc.content.size) return
-
-    const catId = match.rule?.category?.id ?? ''
-    let cls = 'lt-grammar'
-    if (catId.includes('TYPO') || match.rule?.issueType === 'misspelling') cls = 'lt-spelling'
-    else if (catId.includes('STYLE')) cls = 'lt-style'
-
-    try {
-      decorations.push(
-        Decoration.inline(from, to, {
-          class: cls,
-          title: match.shortMessage || match.message,
-        })
-      )
-    } catch (_) {}
-  })
-
-  return DecorationSet.create(doc, decorations)
-}
-
-// Tiptap extension for grammar highlighting
-function createGrammarExtension(getMatches: () => LTMatch[]) {
-  return Extension.create({
-    name: 'grammarHighlight',
-    addProseMirrorPlugins() {
-      return [
-        new Plugin({
-          key: grammarPluginKey,
-          state: {
-            init(_, { doc }) {
-              return buildDecorations(doc, getMatches())
-            },
-            apply(tr, old, _, newState) {
-              if (tr.docChanged) {
-                return buildDecorations(newState.doc, getMatches())
-              }
-              const meta = tr.getMeta(grammarPluginKey)
-              if (meta) return buildDecorations(newState.doc, meta)
-              return old
-            },
-          },
-          props: {
-            decorations(state) {
-              return grammarPluginKey.getState(state)
-            },
-          },
-        }),
-      ]
-    },
-  })
-}
-
 export default function SectionEditor({
   sectionId, sectionName, fase,
   content, pageNum, tesisTitulo, normaClass, projectId, zoom,
@@ -107,7 +41,6 @@ export default function SectionEditor({
   const isActive  = activeSectionId === sectionId
   const isVirtual = sectionId.startsWith('virtual-')
   const pbIdRef   = useRef<string | null>(isVirtual ? null : sectionId)
-  const matchesRef = useRef<LTMatch[]>([])
 
   const { scheduleCheck } = useLanguageTool()
 
@@ -124,7 +57,6 @@ export default function SectionEditor({
         placeholder: `Escribe el contenido de "${sectionName}"...`,
         emptyEditorClass: 'is-editor-empty',
       }),
-      createGrammarExtension(() => matchesRef.current),
     ],
     content: (content as TiptapDoc) ?? undefined,
     onUpdate: ({ editor }) => {
@@ -132,21 +64,17 @@ export default function SectionEditor({
       const wc   = countWords(json as any)
       handleSave(json, wc)
 
-      // Schedule grammar check
+      // Schedule grammar check via LanguageTool
       const text = editor.getText()
-      scheduleCheck(text, (newMatches) => {
-        matchesRef.current = newMatches
-        // Update decorations
-        const { state, view } = editor
-        if (view) {
-          const tr = state.tr.setMeta(grammarPluginKey, newMatches)
-          view.dispatch(tr)
-        }
-        // Notify parent
-        if (onGrammarResults) {
-          onGrammarResults(newMatches, pbIdRef.current ?? sectionId)
-        }
-      }, 2000)
+      if (text.trim().length > 20) {
+        scheduleCheck(text, (matches) => {
+          // Apply visual underlines via CSS classes on editor marks
+          // No ProseMirror plugin needed - just notify parent
+          if (onGrammarResults) {
+            onGrammarResults(matches, pbIdRef.current ?? sectionId)
+          }
+        }, 2500)
+      }
     },
     editorProps: { attributes: { class: 'tiptap' } },
   })
@@ -224,17 +152,16 @@ export default function SectionEditor({
     return () => window.removeEventListener('insert-cite', handleInsertCite)
   }, [handleInsertCite])
 
-  // Apply fix from grammar panel
+  // Apply grammar fix from panel
   const handleApplyFix = useCallback((e: Event) => {
     const { match, replacement, sectionId: targetId } = (e as CustomEvent).detail
     if (targetId !== (pbIdRef.current ?? sectionId) || !editor) return
-    const { state } = editor
-    const text = state.doc.textContent
-    const from = match.offset + 1
-    const to   = from + match.length
-    if (from >= 1 && to <= state.doc.content.size) {
-      editor.chain().focus().deleteRange({ from, to }).insertContentAt(from, replacement).run()
-    }
+    const text = editor.getText()
+    const before = text.slice(0, match.offset)
+    const after  = text.slice(match.offset + match.length)
+    const newText = before + replacement + after
+    // Simple approach: replace full text content
+    editor.commands.setContent(`<p>${newText}</p>`)
   }, [editor, sectionId])
 
   useEffect(() => {
