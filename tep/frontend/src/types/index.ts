@@ -206,3 +206,8 @@ export interface AppState {
   aiPanelOpen:     boolean
   aiContext:       string
 }
+
+// ── HELPER: flatten all section names from a tipo ─────────────
+export function flattenFaseItems(tipo: TesisTipo): string[] {
+  return tipo.fases.flatMap(f => f.items)
+}
