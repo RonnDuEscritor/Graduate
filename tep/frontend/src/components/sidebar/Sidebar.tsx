@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useRevision } from '@/hooks/useRevision'
@@ -31,6 +31,16 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
   } = useStore()
   const { runRevision } = useRevision()
   const [tab, setTab] = useState<PanelTab>('structure')
+
+  // Let the ribbon toolbar (Revisar / Referencias tabs) switch panels here
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const target = (e as CustomEvent).detail as PanelTab
+      if (target) setTab(target)
+    }
+    window.addEventListener('switch-sidebar-tab', handler)
+    return () => window.removeEventListener('switch-sidebar-tab', handler)
+  }, [])
 
   const tipo           = project ? TIPOS_TESIS[project.tipo] : null
   const sectionByName  = new Map(sections.map(s => [s.name, s]))

@@ -16,6 +16,8 @@ import { countWords } from '@/lib/utils'
 import { useLanguageTool } from '@/hooks/useLanguageTool'
 import type { LTMatch } from '@/hooks/useLanguageTool'
 import type { TiptapDoc } from '@/types'
+import { GrammarErrorMark } from '@/extensions/GrammarErrorMark'
+import { applyGrammarMarks, applyGrammarFix, stripGrammarMarksFromJSON } from '@/lib/grammarPosition'
 
 interface SectionEditorProps {
   sectionId:   string
@@ -53,14 +55,20 @@ export default function SectionEditor({
       Image.configure({ inline: false }),
       Table.configure({ resizable: true }),
       TableRow, TableCell, TableHeader,
+      GrammarErrorMark,
       Placeholder.configure({
         placeholder: `Escribe el contenido de "${sectionName}"...`,
         emptyEditorClass: 'is-editor-empty',
       }),
     ],
     content: (content as TiptapDoc) ?? undefined,
-    onUpdate: ({ editor }) => {
-      const json = editor.getJSON() as TiptapDoc
+    onUpdate: ({ editor, transaction }) => {
+      // Ignore transactions we dispatched ourselves to paint grammar underlines -
+      // they don't represent a real content change and must not re-trigger a save
+      // or a new grammar check (that would loop forever).
+      if (transaction.getMeta('grammarMark')) return
+
+      const json = stripGrammarMarksFromJSON(editor.getJSON()) as TiptapDoc
       const wc   = countWords(json as any)
       handleSave(json, wc)
 
@@ -68,12 +76,15 @@ export default function SectionEditor({
       const text = editor.getText()
       if (text.trim().length > 20) {
         scheduleCheck(text, (matches) => {
-          // Apply visual underlines via CSS classes on editor marks
-          // No ProseMirror plugin needed - just notify parent
+          // Underline the matches directly in the document using the
+          // grammarError Tiptap mark (no ProseMirror plugin involved).
+          applyGrammarMarks(editor, matches)
           if (onGrammarResults) {
             onGrammarResults(matches, pbIdRef.current ?? sectionId)
           }
         }, 2500)
+      } else {
+        applyGrammarMarks(editor, [])
       }
     },
     editorProps: { attributes: { class: 'tiptap' } },
@@ -109,7 +120,7 @@ export default function SectionEditor({
   useEffect(() => {
     const handler = () => {
       if (!isActive || !editor) return
-      const json = editor.getJSON() as TiptapDoc
+      const json = stripGrammarMarksFromJSON(editor.getJSON()) as TiptapDoc
       const wc   = countWords(json as any)
       handleSave(json, wc)
     }
@@ -152,22 +163,35 @@ export default function SectionEditor({
     return () => window.removeEventListener('insert-cite', handleInsertCite)
   }, [handleInsertCite])
 
-  // Apply grammar fix from panel
+  // Apply grammar fix from panel - replaces just the matched range in place,
+  // preserving the rest of the document's structure and formatting.
   const handleApplyFix = useCallback((e: Event) => {
     const { match, replacement, sectionId: targetId } = (e as CustomEvent).detail
     if (targetId !== (pbIdRef.current ?? sectionId) || !editor) return
-    const text = editor.getText()
-    const before = text.slice(0, match.offset)
-    const after  = text.slice(match.offset + match.length)
-    const newText = before + replacement + after
-    // Simple approach: replace full text content
-    editor.commands.setContent(`<p>${newText}</p>`)
+    applyGrammarFix(editor, match, replacement)
   }, [editor, sectionId])
 
   useEffect(() => {
     window.addEventListener('apply-grammar-fix', handleApplyFix)
     return () => window.removeEventListener('apply-grammar-fix', handleApplyFix)
   }, [handleApplyFix])
+
+  // Manual "Revisar ahora" trigger from the ribbon
+  const handleForceGrammarCheck = useCallback(() => {
+    if (!isActive || !editor) return
+    const text = editor.getText()
+    scheduleCheck(text, (matches) => {
+      applyGrammarMarks(editor, matches)
+      if (onGrammarResults) {
+        onGrammarResults(matches, pbIdRef.current ?? sectionId)
+      }
+    }, 0)
+  }, [isActive, editor, scheduleCheck, onGrammarResults, sectionId])
+
+  useEffect(() => {
+    window.addEventListener('force-grammar-check', handleForceGrammarCheck)
+    return () => window.removeEventListener('force-grammar-check', handleForceGrammarCheck)
+  }, [handleForceGrammarCheck])
 
   const handleFocus = () => setActiveSection(pbIdRef.current ?? sectionId)
 

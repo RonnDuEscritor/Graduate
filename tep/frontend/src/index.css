@@ -99,3 +99,32 @@
   text-decoration-skip-ink: none;
   cursor: pointer;
 }
+.lt-punctuation {
+  text-decoration: underline wavy #d97706;
+  text-decoration-skip-ink: none;
+  cursor: pointer;
+}
+.lt-spelling:hover, .lt-grammar:hover, .lt-style:hover, .lt-punctuation:hover {
+  background: rgba(0,0,0,.04);
+  border-radius: 2px;
+}
+
+/* ── WORD-STYLE RIBBON ──────────────────────────────────── */
+.ribbon-tab-btn {
+  padding: 4px 14px; font-size: 12px; font-weight: 500;
+  color: #6B6280; border-bottom: 2px solid transparent;
+  transition: all .15s ease; white-space: nowrap;
+}
+.ribbon-tab-btn:hover { color: #2E1F5E; background: rgba(83,74,183,.05); }
+.ribbon-tab-btn.active {
+  color: #534AB7; border-bottom-color: #534AB7; background: rgba(83,74,183,.06);
+}
+.ribbon-group {
+  display: flex; align-items: flex-end; gap: 2px;
+  padding: 4px 10px; border-right: 1px solid #EDEAF7;
+}
+.ribbon-group:last-child { border-right: none; }
+.ribbon-group-label {
+  font-size: 9px; color: #A79FD1; text-align: center; text-transform: uppercase;
+  letter-spacing: .04em; margin-top: 2px;
+}

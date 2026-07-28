@@ -26,7 +26,7 @@ export default function EditorPage() {
   const [error,      setError]      = useState('')
   const [zoomIdx,    setZoomIdx]    = useState(3)
 
-  // Grammar state — collected from all section editors
+  // Grammar state - collected from all section editors
   const [grammarMatches,           setGrammarMatches]           = useState<LTMatch[]>([])
   const [activeSectionForGrammar,  setActiveSectionForGrammar]  = useState<string | undefined>()
 
@@ -134,7 +134,7 @@ export default function EditorPage() {
           </div>
         </div>
 
-        <Toolbar />
+        <Toolbar grammarCount={grammarMatches.length} />
 
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 overflow-y-auto overflow-x-auto bg-[#E8E4F0] py-8 px-4">

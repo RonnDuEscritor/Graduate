@@ -1,34 +1,12 @@
 import { cn } from '@/lib/utils'
 import type { LTMatch } from '@/hooks/useLanguageTool'
+import { CATEGORY_COLORS, CATEGORY_LABELS, getCategoryKey } from '@/lib/grammarCategory'
 
 interface GrammarPanelProps {
   matches:   LTMatch[]
   checking:  boolean
   onFix:     (match: LTMatch, replacement: string) => void
   onDismiss: (match: LTMatch) => void
-}
-
-const CATEGORY_COLORS: Record<string, string> = {
-  TYPOS:       'text-red-500   bg-red-50   border-red-200',
-  GRAMMAR:     'text-orange-500 bg-orange-50 border-orange-200',
-  STYLE:       'text-blue-500  bg-blue-50  border-blue-200',
-  PUNCTUATION: 'text-yellow-600 bg-yellow-50 border-yellow-200',
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  TYPOS:       'Ortografia',
-  GRAMMAR:     'Gramatica',
-  STYLE:       'Estilo',
-  PUNCTUATION: 'Puntuacion',
-}
-
-function getCategoryKey(match: LTMatch): string {
-  const cat = match.rule?.category?.id ?? ''
-  if (cat.includes('TYPO') || match.rule?.issueType === 'misspelling') return 'TYPOS'
-  if (cat.includes('GRAM')) return 'GRAMMAR'
-  if (cat.includes('STYLE') || cat.includes('REDUNDANCY')) return 'STYLE'
-  if (cat.includes('PUNCT')) return 'PUNCTUATION'
-  return 'GRAMMAR'
 }
 
 export default function GrammarPanel({ matches, checking, onFix, onDismiss }: GrammarPanelProps) {
