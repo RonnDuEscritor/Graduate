@@ -6,11 +6,13 @@ export default {
     extend: {
       colors: {
         brand: {
-          50:'#F5F3FC', 100:'#EAE7F8', 200:'#D4CEEF', 300:'#A99FDE',
-          400:'#7B6FCC', 500:'#534AB7', 600:'#3D2B7A', 700:'#2E1F5E',
-          800:'#241848', 900:'#1A1133', 950:'#0E0920',
+          50:'#FBF1F3', 100:'#F5DEE3', 200:'#E9BAC5', 300:'#CB8698',
+          400:'#A8546A', 500:'#7D1A31', 600:'#5A0F24', 700:'#450A1B',
+          800:'#300712', 900:'#20040D', 950:'#120209',
         },
-        gold: '#C9A84C',
+        gold: '#D4A72C',
+        'gold-light': '#F0D584',
+        'gold-dark': '#8A6A16',
       },
       fontFamily: {
         sans:  ['Inter','system-ui','sans-serif'],

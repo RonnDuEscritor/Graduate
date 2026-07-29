@@ -4,10 +4,10 @@
 
 @layer base {
   html, body, #root { height: 100%; overflow: hidden; }
-  body { font-family: 'Inter', system-ui, sans-serif; background: #0E0920; color: #EDE9F7; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #120209; color: #FBF1F3; }
 }
 
-/* ── A4 PAGE ─────────────────────────────────────────────── */
+/* -- A4 PAGE ------------------------------------------------ */
 .a4-page {
   width: 210mm; min-height: 297mm; background: white;
   margin: 0 auto 24px; border-radius: 2px;
@@ -34,56 +34,64 @@
   font-family:'Times New Roman',Times,serif;
 }
 .section-anchor-label {
-  font-size:7.5pt; color:rgba(83,74,183,0.4); text-transform:uppercase;
+  font-size:7.5pt; color:rgba(125,26,49,0.45); text-transform:uppercase;
   letter-spacing:0.1em; margin-bottom:8pt;
-  border-left:2px solid rgba(83,74,183,0.25); padding-left:6pt;
+  border-left:2px solid rgba(125,26,49,0.3); padding-left:6pt;
   user-select:none; font-family:'Inter',sans-serif; display:block;
 }
 
-/* ── TIPTAP ──────────────────────────────────────────────── */
+/* -- TIPTAP -------------------------------------------------- */
 .tiptap { outline: none; min-height: 2em; }
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder); color: #bbb; font-style: italic;
   pointer-events: none; float: left; height: 0;
 }
-.tiptap h1 { font-family:'Playfair Display',serif; font-size:18pt; font-weight:600; color:#1A1133; margin:.8em 0 .4em; line-height:1.25; }
-.tiptap h2 { font-family:'Playfair Display',serif; font-size:15pt; font-weight:500; color:#2E1F5E; margin:.7em 0 .3em; line-height:1.28; }
-.tiptap h3 { font-family:'Playfair Display',serif; font-size:13pt; font-weight:500; color:#3D2B7A; margin:.6em 0 .25em; line-height:1.3; }
+.tiptap h1 { font-family:'Playfair Display',serif; font-size:18pt; font-weight:600; color:#20040D; margin:.8em 0 .4em; line-height:1.25; }
+.tiptap h2 { font-family:'Playfair Display',serif; font-size:15pt; font-weight:500; color:#450A1B; margin:.7em 0 .3em; line-height:1.28; }
+.tiptap h3 { font-family:'Playfair Display',serif; font-size:13pt; font-weight:500; color:#5A0F24; margin:.6em 0 .25em; line-height:1.3; }
 .tiptap p  { margin-bottom:.85em; }
 .tiptap ul, .tiptap ol { padding-left:1.5em; margin-bottom:.85em; }
 .tiptap li { margin-bottom:.15em; }
-.tiptap blockquote { border-left:3pt solid #A99FDE; padding:4px 0 4px 14px; margin:1em 0; color:#444; font-style:italic; background:rgba(169,159,222,.06); }
+.tiptap blockquote { border-left:3pt solid #CB8698; padding:4px 0 4px 14px; margin:1em 0; color:#444; font-style:italic; background:rgba(125,26,49,.06); }
 .tiptap table  { border-collapse:collapse; width:100%; margin:1em 0; font-size:11pt; }
-.tiptap th     { font-weight:600; color:#2E1F5E; padding:6pt 9pt; border-bottom:1.5pt solid #534AB7; text-align:left; background:rgba(83,74,183,.04); }
-.tiptap td     { padding:5pt 9pt; border-bottom:.5pt solid #D4CEEF; }
-.tiptap a      { color:#534AB7; text-decoration:underline; }
+.tiptap th     { font-weight:600; color:#450A1B; padding:6pt 9pt; border-bottom:1.5pt solid #7D1A31; text-align:left; background:rgba(125,26,49,.04); }
+.tiptap td     { padding:5pt 9pt; border-bottom:.5pt solid #E9BAC5; }
+.tiptap a      { color:#7D1A31; text-decoration:underline; }
 .tiptap img    { max-width:100%; height:auto; border-radius:4px; }
-.tiptap .selectedCell { background:rgba(83,74,183,.08); }
+.tiptap .selectedCell { background:rgba(125,26,49,.08); }
 
-/* ── CITE CHIP ───────────────────────────────────────────── */
+/* -- CITE CHIP ------------------------------------------------ */
 .cite-chip {
-  display:inline-block; background:rgba(83,74,183,.1);
-  border:1px solid rgba(83,74,183,.25); border-radius:4px;
-  padding:0 5px; font-size:.88em; color:#534AB7;
+  display:inline-block; background:rgba(125,26,49,.1);
+  border:1px solid rgba(125,26,49,.3); border-radius:4px;
+  padding:0 5px; font-size:.88em; color:#7D1A31;
   cursor:default; user-select:none; white-space:nowrap; font-style:normal;
 }
 
-/* ── AI STREAMING CURSOR ─────────────────────────────────── */
-.ai-cursor::after { content:'▋'; animation:blink .8s step-end infinite; color:#534AB7; }
+/* -- AI STREAMING CURSOR ---------------------------------------- */
+.ai-cursor::after { content:'|'; animation:blink .8s step-end infinite; color:#7D1A31; }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
-/* ── SCROLLBAR ───────────────────────────────────────────── */
+/* -- SCROLLBAR (app-wide, garnet) ------------------------------ */
 ::-webkit-scrollbar { width:6px; height:6px; }
 ::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:rgba(83,74,183,.25); border-radius:3px; }
-::-webkit-scrollbar-thumb:hover { background:rgba(83,74,183,.4); }
+::-webkit-scrollbar-thumb { background:rgba(125,26,49,.35); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:rgba(125,26,49,.55); }
 
-/* ── ANIMATIONS ─────────────────────────────────────────── */
+/* -- SIDEBAR SCROLLBAR (gold, for contrast against the dark sidebar) -- */
+.sidebar-scroll::-webkit-scrollbar { width:6px; }
+.sidebar-scroll::-webkit-scrollbar-track { background:rgba(255,255,255,.04); }
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(212,167,44,.55); border-radius:3px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover { background: rgba(212,167,44,.8); }
+.sidebar-scroll { scrollbar-width: thin; scrollbar-color: rgba(212,167,44,.55) rgba(255,255,255,.04); }
+
+/* -- ANIMATIONS ------------------------------------------------ */
 @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
 .animate-fadeIn { animation:fadeIn .2s ease; }
-/* ── LANGUAGETOOL GRAMMAR HIGHLIGHTS ──────────────────────── */
-/* Paste this at the END of your src/index.css file */
 
+/* -- LANGUAGETOOL GRAMMAR HIGHLIGHTS ---------------------------- */
 .lt-spelling {
   text-decoration: underline wavy #ef4444;
   text-decoration-skip-ink: none;
@@ -109,22 +117,22 @@
   border-radius: 2px;
 }
 
-/* ── WORD-STYLE RIBBON ──────────────────────────────────── */
+/* -- WORD-STYLE RIBBON ------------------------------------------ */
 .ribbon-tab-btn {
-  padding: 4px 14px; font-size: 12px; font-weight: 500;
-  color: #6B6280; border-bottom: 2px solid transparent;
-  transition: all .15s ease; white-space: nowrap;
+  padding: 6px 18px; font-size: 14px; font-weight: 700;
+  color: #8A6672; border-bottom: 3px solid transparent;
+  transition: all .15s ease; white-space: nowrap; letter-spacing: .01em;
 }
-.ribbon-tab-btn:hover { color: #2E1F5E; background: rgba(83,74,183,.05); }
+.ribbon-tab-btn:hover { color: #450A1B; background: rgba(125,26,49,.06); }
 .ribbon-tab-btn.active {
-  color: #534AB7; border-bottom-color: #534AB7; background: rgba(83,74,183,.06);
+  color: #7D1A31; border-bottom-color: #7D1A31; background: rgba(125,26,49,.08);
 }
 .ribbon-group {
   display: flex; align-items: flex-end; gap: 2px;
-  padding: 4px 10px; border-right: 1px solid #EDEAF7;
+  padding: 4px 10px; border-right: 1px solid #F5DEE3;
 }
 .ribbon-group:last-child { border-right: none; }
 .ribbon-group-label {
-  font-size: 9px; color: #A79FD1; text-align: center; text-transform: uppercase;
+  font-size: 9px; color: #CB8698; text-align: center; text-transform: uppercase;
   letter-spacing: .04em; margin-top: 2px;
 }

@@ -137,7 +137,7 @@ export default function EditorPage() {
         <Toolbar grammarCount={grammarMatches.length} />
 
         <div className="flex-1 flex overflow-hidden">
-          <div className="flex-1 overflow-y-auto overflow-x-auto bg-[#E8E4F0] py-8 px-4">
+          <div className="flex-1 overflow-y-auto overflow-x-auto bg-[#F1E8EA] py-8 px-4">
             {tipo.fases.map(fase =>
               fase.items.map(name => {
                 const savedSection = sectionByName.get(name)

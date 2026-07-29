@@ -11,8 +11,8 @@ interface GrammarPanelProps {
 
 export default function GrammarPanel({ matches, checking, onFix, onDismiss }: GrammarPanelProps) {
   if (checking) return (
-    <div className="p-4 flex items-center gap-2 text-brand-400 text-xs">
-      <span className="w-3 h-3 border border-brand-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+    <div className="p-4 flex items-center gap-2 text-white/50 text-xs">
+      <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin flex-shrink-0" />
       Analizando texto...
     </div>
   )
@@ -21,7 +21,7 @@ export default function GrammarPanel({ matches, checking, onFix, onDismiss }: Gr
     <div className="p-4 text-center">
       <div className="text-2xl mb-2">✓</div>
       <p className="text-green-500 text-xs font-medium">Sin errores detectados</p>
-      <p className="text-brand-600 text-xs mt-1">El texto cumple las revisiones de LanguageTool</p>
+      <p className="text-white/40 text-xs mt-1">El texto cumple las revisiones de LanguageTool</p>
     </div>
   )
 

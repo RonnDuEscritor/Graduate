@@ -99,22 +99,22 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
 <style>
 @page{size:A4;margin:2.54cm}
 body{font-family:${cfg.font};font-size:${cfg.fontSize};line-height:${cfg.lineHeight};color:#000;margin:0;background:#fff}
-h1{font-family:'Playfair Display',serif;font-size:18pt;color:#1A1133;margin:1em 0 .4em}
-h2{font-family:'Playfair Display',serif;font-size:15pt;color:#2E1F5E;margin:.8em 0 .3em;border-bottom:.5pt solid #ddd;padding-bottom:6pt}
-h3{font-family:'Playfair Display',serif;font-size:13pt;color:#3D2B7A;margin:.7em 0 .25em}
+h1{font-family:'Playfair Display',serif;font-size:18pt;color:#20040D;margin:1em 0 .4em}
+h2{font-family:'Playfair Display',serif;font-size:15pt;color:#450A1B;margin:.8em 0 .3em;border-bottom:.5pt solid #ddd;padding-bottom:6pt}
+h3{font-family:'Playfair Display',serif;font-size:13pt;color:#5A0F24;margin:.7em 0 .25em}
 p{margin:0 0 .8em;text-align:${cfg.textAlign}}
 ul,ol{padding-left:1.5em;margin-bottom:.8em}
-blockquote{border-left:2pt solid #A99FDE;padding:4px 14px;margin:.8em 0;color:#444;font-style:italic}
+blockquote{border-left:2pt solid #CB8698;padding:4px 14px;margin:.8em 0;color:#444;font-style:italic}
 table{border-collapse:collapse;width:100%;margin:1em 0}
-th{font-weight:600;color:#2E1F5E;padding:6pt 9pt;border-bottom:1.5pt solid #534AB7;text-align:left}
-td{padding:5pt 9pt;border-bottom:.5pt solid #D4CEEF}
+th{font-weight:600;color:#450A1B;padding:6pt 9pt;border-bottom:1.5pt solid #7D1A31;text-align:left}
+td{padding:5pt 9pt;border-bottom:.5pt solid #E9BAC5}
 </style></head><body>
 <div style="text-align:center;page-break-after:always;padding:80pt 0">
-  <div style="font-size:9pt;text-transform:uppercase;letter-spacing:.12em;color:#534AB7;margin-bottom:10pt">Tesis de Grado · ${NORMAS[norma].label}</div>
+  <div style="font-size:9pt;text-transform:uppercase;letter-spacing:.12em;color:#7D1A31;margin-bottom:10pt">Tesis de Grado · ${NORMAS[norma].label}</div>
   <h1 style="font-size:22pt;margin:0 0 10pt">${project.title}</h1>
   ${project.author ? `<p style="font-size:11pt;color:#666">${project.author}</p>` : ''}
   ${project.institution ? `<p style="font-size:10pt;color:#888">${project.institution}</p>` : ''}
-  <p style="font-size:10pt;color:#aaa;margin-top:16pt">TesisEditor Pro — RonnDu Corp. · ${project.year ?? new Date().getFullYear()}</p>
+  <p style="font-size:10pt;color:#aaa;margin-top:16pt">Graduate Pro — RonnDu Corp. · ${project.year ?? new Date().getFullYear()}</p>
 </div>
 ${bodyHTML}${bibHTML}
 </body></html>`
@@ -124,13 +124,13 @@ ${bodyHTML}${bibHTML}
     let html = '<div style="font-size:11pt">'
     let ar = 1, ro = 1
     t.fases.forEach(f => {
-      html += `<div style="font-size:8pt;text-transform:uppercase;letter-spacing:.1em;color:#7B6FCC;margin:12pt 0 4pt;border-bottom:.5pt solid #ddd;padding-bottom:3pt">${f.fase}</div>`
+      html += `<div style="font-size:8pt;text-transform:uppercase;letter-spacing:.1em;color:#A8546A;margin:12pt 0 4pt;border-bottom:.5pt solid #ddd;padding-bottom:3pt">${f.fase}</div>`
       flattenFaseItems(f).forEach(({ name, group }) => {
         const pg = f.isRoman ? toRoman(ro) : ar
         if (f.isRoman) ro++; else ar++
         const displayName = group ? name.split(' · ')[1] : name
         const indent = group ? 'padding-left:14pt;color:#666' : ''
-        html += `<div style="display:flex;justify-content:space-between;padding:3pt 0;border-bottom:.5pt dotted #eee;${indent}"><span>${displayName}</span><span style="color:#534AB7;font-weight:500">${pg}</span></div>`
+        html += `<div style="display:flex;justify-content:space-between;padding:3pt 0;border-bottom:.5pt dotted #eee;${indent}"><span>${displayName}</span><span style="color:#7D1A31;font-weight:500">${pg}</span></div>`
       })
     })
     return html + '</div>'
