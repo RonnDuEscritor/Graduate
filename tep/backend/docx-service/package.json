@@ -1,0 +1,15 @@
+{
+  "name": "graduate-docx-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Internal microservice that renders real OOXML .docx theses from Tiptap JSON. Only reachable from the PocketBase process on 127.0.0.1 (see pb_hooks/main.pb.js).",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "docx": "^9.7.1",
+    "express": "^4.19.2"
+  }
+}

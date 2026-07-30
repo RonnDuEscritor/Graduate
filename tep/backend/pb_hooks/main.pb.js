@@ -1,6 +1,97 @@
 // PocketBase JS Hooks — pb_hooks/main.pb.js
-// Se ejecutan en el servidor de PocketBase automáticamente
+// Se ejecutan en el servidor de PocketBase automaticamente
 
+// ── DOCX GENERATION PROXY ─────────────────────────────────────
+// The actual OOXML rendering happens in a small internal Node service
+// (backend/docx-service) using the real `docx` npm library -- PocketBase's
+// JS hooks run on a sandboxed goja VM that cannot build a real .docx (no
+// npm, no zip/deflate bindings). This route is the single public entry
+// point: it forwards the request to 127.0.0.1 (never exposed externally)
+// and streams the resulting file back to the browser.
+//
+// IMPORTANT: $http.send()'s response.raw is a JS string decoded as UTF-8,
+// which corrupts arbitrary binary bytes. So the Node service returns the
+// document as base64 JSON instead, and we decode it back to raw bytes here
+// with a plain-JS decoder (goja has no atob/Buffer).
+//
+// NOTE: PocketBase compiles/executes each hook callback as its own isolated
+// "program" -- a helper function declared at file top-level is NOT visible
+// inside a routerAdd callback, so the base64 decoder must be nested here.
+routerAdd("POST", "/api/docx/generate", (c) => {
+  function base64Decode(str) {
+    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    var lookup = {}
+    for (var i = 0; i < chars.length; i++) lookup[chars[i]] = i
+    str = String(str || "").replace(/[\r\n]/g, "").replace(/=+$/, "")
+    var bytes = []
+    var buffer = 0, bits = 0
+    for (var j = 0; j < str.length; j++) {
+      var c2 = str[j]
+      if (!(c2 in lookup)) continue
+      buffer = (buffer << 6) | lookup[c2]
+      bits += 6
+      if (bits >= 8) {
+        bits -= 8
+        bytes.push((buffer >> bits) & 0xff)
+      }
+    }
+    return bytes
+  }
+
+  const info = $apis.requestInfo(c)
+
+  // Require a logged-in PocketBase user (the Node service additionally
+  // re-checks that this user actually owns the requested project).
+  if (!info.authRecord) {
+    return c.json(401, { error: "Debes iniciar sesion para exportar." })
+  }
+
+  const authHeader = c.request().header.get("Authorization")
+  // Fixed internal port -- matches DOCX_SERVICE_PORT's default in docx-service/server.js.
+  // Both processes run in the same container; this port is never exposed publicly.
+  const docxPort = "8091"
+
+  let res
+  try {
+    res = $http.send({
+      url: "http://127.0.0.1:" + docxPort + "/generate",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": authHeader || "",
+      },
+      body: JSON.stringify(info.data),
+      timeout: 60,
+    })
+  } catch (err) {
+    return c.json(502, { error: "El servicio de generacion de documentos no esta disponible.", detail: String(err) })
+  }
+
+  let parsed
+  try {
+    parsed = JSON.parse(res.raw)
+  } catch (_e) {
+    return c.json(502, { error: "Respuesta invalida del servicio de generacion de documentos." })
+  }
+
+  if (res.statusCode !== 200 || !parsed.base64) {
+    return c.json(res.statusCode || 500, { error: parsed.error || "No se pudo generar el documento." })
+  }
+
+  const bytes = base64Decode(parsed.base64)
+  const project = (info.data && info.data.project) || {}
+  const safeTitle = String(project.title || "tesis").replace(/[^a-zA-Z0-9 _-]/g, "").trim() || "tesis"
+
+  c.response().header().set(
+    "Content-Disposition",
+    'attachment; filename="' + safeTitle + '.docx"'
+  )
+  return c.blob(
+    200,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    bytes
+  )
+})
 // ── AUTO WORD COUNT al guardar sección ───────────────────────
 onRecordBeforeUpdateRequest((e) => {
   const record = e.record
