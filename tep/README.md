@@ -32,8 +32,8 @@ supabase/
 ├── migrations/
 │   └── 0001_init.sql         <- Esquema completo (tablas + RLS + triggers)
 └── functions/
-    ├── _shared/               <- Logica de generacion DOCX (compartida)
-    └── generate-docx/         <- Edge Function publica
+    └── generate-docx/
+        └── index.ts           <- Edge Function autocontenida (1 solo archivo)
 ```
 
 ## Por que Supabase y no PocketBase/Railway/Render
@@ -69,10 +69,10 @@ supabase functions deploy generate-docx
 También puedes hacer todo esto sin instalar nada, desde el dashboard web de
 Supabase:
 1. **SQL Editor** -> pega el contenido de `supabase/migrations/0001_init.sql` -> Run.
-2. **Edge Functions** -> New Function -> `generate-docx` -> pega el contenido
-   de `supabase/functions/generate-docx/index.ts` y de
-   `supabase/functions/_shared/*.ts` (el dashboard permite archivos multiples
-   por funcion).
+2. **Edge Functions** -> Deploy a new function -> **Via Editor** -> nombrala
+   `generate-docx` -> pega el contenido completo de
+   `supabase/functions/generate-docx/index.ts` (es un solo archivo
+   autocontenido, no necesitas archivos adicionales) -> Deploy.
 
 ### 2. Frontend
 ```bash
