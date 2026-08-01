@@ -10,7 +10,7 @@ import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Placeholder from '@tiptap/extension-placeholder'
-import { pb } from '@/lib/pb'
+import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store'
 import { countWords } from '@/lib/utils'
 import { useLanguageTool } from '@/hooks/useLanguageTool'
@@ -95,14 +95,18 @@ export default function SectionEditor({
     if (!pbIdRef.current) {
       setSaving(true)
       try {
-        const rec = await pb.collection('sections').create({
-          project:     projectId,
-          name:        sectionName,
-          fase:        fase,
-          order_index: 1,
-          word_count:  wc,
-          content:     json,
-        })
+        const { data: rec, error } = await supabase
+          .from('sections')
+          .insert({
+            project:     projectId,
+            name:        sectionName,
+            fase:        fase,
+            order_index: 1,
+            word_count:  wc,
+            content:     json,
+          })
+          .select().single()
+        if (error) throw error
         pbIdRef.current = rec.id
         saveSectionContent(rec.id, json, wc)
         setSaving(false)

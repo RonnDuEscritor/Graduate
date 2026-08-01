@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { pb } from '@/lib/pb'
+import { supabase } from '@/lib/supabase'
 import { debounce } from '@/lib/utils'
 import type { AppState, PBProject, PBSection, PBReference, PBCitation, RevisionIssue, NormaType, TiptapDoc } from '@/types'
 
@@ -13,7 +13,7 @@ interface Actions {
   setRevisionIssues:  (issues: RevisionIssue[]) => void
   setAiPanel:         (open: boolean, ctx?: string) => void
 
-  // Section save — debounced, goes to PocketBase
+  // Section save -- debounced, goes to Supabase
   saveSectionContent: (sectionId: string, content: TiptapDoc, wordCount: number) => void
 
   // References
@@ -49,7 +49,9 @@ export const useStore = create<AppState & Actions>((set, get) => ({
     set({ norma })
     const { project } = get()
     if (project) {
-      pb.collection('projects').update(project.id, { norma }).catch(console.error)
+      supabase.from('projects').update({ norma }).eq('id', project.id).then(({ error }) => {
+        if (error) console.error(error)
+      })
     }
   },
 
@@ -61,10 +63,13 @@ export const useStore = create<AppState & Actions>((set, get) => ({
         s.id === sectionId ? { ...s, content, word_count: wordCount } : s
       ),
     }))
-    pb.collection('sections')
-      .update(sectionId, { content, word_count: wordCount })
-      .then(() => set({ isSaving: false, lastSaved: new Date() }))
-      .catch(err => { console.error('Save error:', err); set({ isSaving: false }) })
+    supabase.from('sections')
+      .update({ content, word_count: wordCount })
+      .eq('id', sectionId)
+      .then(({ error }) => {
+        if (error) { console.error('Save error:', error); set({ isSaving: false }) }
+        else set({ isSaving: false, lastSaved: new Date() })
+      })
   }, 1500) as (sectionId: string, content: TiptapDoc, wordCount: number) => void,
 
   // ── REFERENCES ────────────────────────────────────────────

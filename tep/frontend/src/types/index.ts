@@ -137,9 +137,9 @@ export const SECTION_GUIDANCE: Record<string, SubItem[]> = {
   ],
 }
 
-// ── POCKETBASE RECORDS ───────────────────────────────────────
+// -- SUPABASE / POSTGRES RECORDS --------------------------------
 export interface PBProject {
-  id: string; collectionId: string; collectionName: string
+  id: string
   created: string; updated: string
   user: string; title: string; tipo: TipoTesis; norma: NormaType
   institution?: string; author?: string; tutor?: string
@@ -148,7 +148,7 @@ export interface PBProject {
 }
 
 export interface PBSection {
-  id: string; collectionId: string; collectionName: string
+  id: string
   created: string; updated: string
   project: string; name: string; fase: string
   order_index: number; is_roman: boolean
@@ -156,7 +156,7 @@ export interface PBSection {
 }
 
 export interface PBReference {
-  id: string; collectionId: string; collectionName: string
+  id: string
   created: string; updated: string
   project: string; author: string; initial?: string; year: string
   ref_type: RefType; title: string; publisher?: string
@@ -165,14 +165,14 @@ export interface PBReference {
 }
 
 export interface PBCitation {
-  id: string; collectionId: string; collectionName: string
+  id: string
   created: string; updated: string
   project: string; section: string; reference: string
   page_ref?: string; order_of_appearance: number
 }
 
 export interface PBVersion {
-  id: string; collectionId: string; collectionName: string
+  id: string
   created: string; updated: string
   project: string; label: string
   snapshot: Record<string, TiptapDoc | null>; auto: boolean

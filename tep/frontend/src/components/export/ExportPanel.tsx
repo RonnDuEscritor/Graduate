@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '@/store'
 import { TIPOS_TESIS, NORMAS } from '@/types'
 import { formatRef, toRoman } from '@/lib/utils'
-import { pb } from '@/lib/pb'
+import { supabase } from '@/lib/supabase'
 import type { PBSection, TiptapNode } from '@/types'
 
 function tiptapToHTML(node: TiptapNode | null | undefined): string {
@@ -146,7 +146,7 @@ ${bodyHTML}${bibHTML}
 
   const [docxError, setDocxError] = useState<string | null>(null)
 
-  // Builds the payload the backend (PocketBase -> internal Node docx-service)
+  // Builds the payload the Supabase Edge Function (generate-docx) needs to
   // needs to render a *real* OOXML .docx: ordered sections with their raw
   // Tiptap JSON (so headings become native Word styles the TOC field can
   // find), plus references already formatted as HTML via formatRef().
@@ -195,11 +195,15 @@ ${bodyHTML}${bibHTML}
     setLoading(true)
     setDocxError(null)
     try {
-      const res = await fetch(`${pb.baseUrl}/api/docx/generate`, {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Debes iniciar sesion para exportar.')
+
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-docx`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': pb.authStore.token,
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
         body: JSON.stringify(payload),
       })

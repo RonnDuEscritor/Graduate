@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { pb } from '@/lib/pb'
+import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store'
 import { buildCiteText, lookupDOI, formatRef, cn } from '@/lib/utils'
 import type { PBReference, RefType } from '@/types'
 
-const EMPTY_FORM = (): Omit<PBReference, 'id'|'collectionId'|'collectionName'|'created'|'updated'|'project'> => ({
+const EMPTY_FORM = (): Omit<PBReference, 'id'|'created'|'updated'|'project'> => ({
   author:'', initial:'', year:'', ref_type:'libro', title:'',
   publisher:'', journal:'', volume:'', issue:'', doi:'', url:'', pages:'',
 })
@@ -44,10 +44,16 @@ export default function ReferencesPanel() {
     setSaving(true)
     try {
       if (editId) {
-        const updated = await pb.collection('references').update<PBReference>(editId, { project: project.id, ...form })
+        const { data: updated, error } = await supabase
+          .from('bibliography').update({ project: project.id, ...form })
+          .eq('id', editId).select().single<PBReference>()
+        if (error) throw error
         upsertReference(updated)
       } else {
-        const created = await pb.collection('references').create<PBReference>({ project: project.id, ...form })
+        const { data: created, error } = await supabase
+          .from('bibliography').insert({ project: project.id, ...form })
+          .select().single<PBReference>()
+        if (error) throw error
         upsertReference(created)
       }
       setShowForm(false)
@@ -57,7 +63,8 @@ export default function ReferencesPanel() {
 
   const remove = async (id: string) => {
     if (!confirm('¿Eliminar esta referencia?')) return
-    await pb.collection('references').delete(id)
+    const { error } = await supabase.from('bibliography').delete().eq('id', id)
+    if (error) { console.error(error); return }
     removeReference(id)
   }
 
@@ -70,13 +77,17 @@ export default function ReferencesPanel() {
     window.dispatchEvent(new CustomEvent('insert-cite', {
       detail: { refId: ref.id, citeText, sectionId: activeSectionId }
     }))
-    // Record citation in PocketBase
+    // Record citation in Supabase
     if (!citations.find(c => c.section === activeSectionId && c.reference === ref.id)) {
       try {
-        const cit = await pb.collection('citations').create({
-          project: project!.id, section: activeSectionId, reference: ref.id,
-          order_of_appearance: citations.length + 1,
-        })
+        const { data: cit, error } = await supabase
+          .from('citations')
+          .insert({
+            project: project!.id, section: activeSectionId, reference: ref.id,
+            order_of_appearance: citations.length + 1,
+          })
+          .select().single()
+        if (error) throw error
         addCitation(cit)
       } catch(e) { console.error(e) }
     }

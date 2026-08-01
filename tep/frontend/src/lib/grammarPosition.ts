@@ -118,7 +118,7 @@ export function applyGrammarFix(editor: Editor, match: LTMatch, replacement: str
 /**
  * Removes grammarError marks from a Tiptap JSON document before it's
  * persisted, so the ephemeral underline data never ends up saved in
- * PocketBase.
+ * the backend.
  */
 export function stripGrammarMarksFromJSON<T>(json: T): T {
   const node = json as unknown as { marks?: Array<{ type: string }>, content?: unknown[] }
