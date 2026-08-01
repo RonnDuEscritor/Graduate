@@ -9,6 +9,20 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
+      - name: Diagnostics (temporary -- safe to remove once this works)
+        run: |
+          echo "URL length: ${#SUPABASE_URL} chars"
+          echo "URL starts with: $(echo "$SUPABASE_URL" | cut -c1-30)"
+          echo "Key length: ${#SUPABASE_ANON_KEY} chars"
+          echo ""
+          echo "--- Testing /rest/v1/ (should always respond if the URL/key are correct) ---"
+          curl -s "${SUPABASE_URL}/rest/v1/" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -w "\nHTTP %{http_code}\n"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
       - name: Ping Supabase REST API
         run: |
           curl -sf "${SUPABASE_URL}/rest/v1/projects?select=id&limit=1" \
