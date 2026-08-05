@@ -12,6 +12,7 @@ interface Actions {
   setNorma:           (n: NormaType) => void
   setRevisionIssues:  (issues: RevisionIssue[]) => void
   setAiPanel:         (open: boolean, ctx?: string) => void
+  setSidebarOpen:     (open: boolean) => void
 
   // Section save -- debounced, goes to Supabase
   saveSectionContent: (sectionId: string, content: TiptapDoc, wordCount: number) => void
@@ -34,7 +35,7 @@ export const useStore = create<AppState & Actions>((set, get) => ({
   // ── STATE ────────────────────────────────────────────────
   project: null, sections: [], references: [], citations: [],
   activeSectionId: null, norma: 'libre', revisionIssues: [],
-  isSaving: false, lastSaved: null, aiPanelOpen: false, aiContext: '',
+  isSaving: false, lastSaved: null, aiPanelOpen: false, aiContext: '', sidebarOpen: false,
 
   // ── SETTERS ──────────────────────────────────────────────
   setProject:       (project)  => set({ project }),
@@ -44,6 +45,7 @@ export const useStore = create<AppState & Actions>((set, get) => ({
   setActiveSection: (id)       => set({ activeSectionId: id }),
   setRevisionIssues:(issues)   => set({ revisionIssues: issues }),
   setAiPanel: (open, ctx='')   => set({ aiPanelOpen: open, aiContext: ctx }),
+  setSidebarOpen: (open)       => set({ sidebarOpen: open }),
 
   setNorma: (norma) => {
     set({ norma })

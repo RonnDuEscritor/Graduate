@@ -19,7 +19,7 @@ export default function EditorPage() {
   const navigate  = useNavigate()
   const { user }  = useAuth()
   const { loadProject } = useProject()
-  const { project, sections, norma, aiPanelOpen, setAiPanel } = useStore()
+  const { project, sections, norma, aiPanelOpen, setAiPanel, sidebarOpen, setSidebarOpen } = useStore()
 
   const [loading,    setLoading]    = useState(true)
   const [showExport, setShowExport] = useState(false)
@@ -91,7 +91,13 @@ export default function EditorPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-brand-100 flex-shrink-0">
-          <span className="text-brand-300 text-xs font-medium truncate max-w-xs">{project.title}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <button onClick={() => setSidebarOpen(true)}
+              className="md:hidden w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg text-brand-500 hover:bg-brand-50">
+              <i className="ti ti-menu-2 text-lg" />
+            </button>
+            <span className="text-brand-300 text-xs font-medium truncate max-w-[140px] md:max-w-xs">{project.title}</span>
+          </div>
 
           <div className="flex items-center gap-3">
             {/* Zoom */}

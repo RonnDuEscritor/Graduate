@@ -205,6 +205,7 @@ export interface AppState {
   lastSaved:       Date | null
   aiPanelOpen:     boolean
   aiContext:       string
+  sidebarOpen:     boolean
 }
 
 // ── HELPER: flatten all section names from a tipo ─────────────

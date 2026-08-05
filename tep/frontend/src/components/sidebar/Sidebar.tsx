@@ -28,6 +28,7 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
     project, sections, norma, setNorma,
     revisionIssues, isSaving, lastSaved,
     activeSectionId, setActiveSection,
+    sidebarOpen, setSidebarOpen,
   } = useStore()
   const { runRevision } = useRevision()
   const [tab, setTab] = useState<PanelTab>('structure')
@@ -56,6 +57,9 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
     setActiveSection(sec?.id ?? `virtual-${name}`)
     const el = document.getElementById(id)
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // On mobile the sidebar is an overlay -- close it so the editor is visible.
+    // (md:translate-x-0 keeps it always visible on desktop regardless of this state.)
+    setSidebarOpen(false)
   }
 
   const handleFix = (match: LTMatch, replacement: string) => {
@@ -65,7 +69,25 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
   }
 
   return (
-    <aside className="w-64 min-w-64 flex flex-col bg-gradient-to-b from-brand-900 to-brand-950 border-r border-white/10 overflow-hidden">
+    <>
+      {/* Backdrop -- mobile only, closes the drawer on tap */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={cn(
+        "w-64 min-w-64 flex flex-col bg-gradient-to-b from-brand-900 to-brand-950 border-r border-white/10 overflow-hidden",
+        "fixed inset-y-0 left-0 z-40 transition-transform duration-200",
+        "md:static md:translate-x-0",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <button onClick={() => setSidebarOpen(false)}
+          className="md:hidden absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 z-10">
+          <i className="ti ti-x text-lg" />
+        </button>
 
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-white/10 flex-shrink-0">
@@ -200,5 +222,6 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
         </button>
       </div>
     </aside>
+    </>
   )
 }
