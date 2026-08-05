@@ -99,9 +99,9 @@ export default function EditorPage() {
             <span className="text-brand-300 text-xs font-medium truncate max-w-[140px] md:max-w-xs">{project.title}</span>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Zoom */}
-            <div className="flex items-center gap-1 bg-brand-50 rounded-lg px-1 py-0.5">
+          <div className="flex items-center gap-2 md:gap-3">
+            {/* Zoom -- hidden on mobile, not enough room and pinch-zoom works fine */}
+            <div className="hidden md:flex items-center gap-1 bg-brand-50 rounded-lg px-1 py-0.5">
               <button onClick={() => setZoomIdx(i => Math.max(0, i - 1))}
                 disabled={zoomIdx === 0}
                 className="w-6 h-6 flex items-center justify-center rounded text-brand-500 hover:bg-white disabled:opacity-30 transition-all">
@@ -123,19 +123,19 @@ export default function EditorPage() {
 
             <button onClick={() => setAiPanel(!aiPanelOpen)}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
+                'flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
                 aiPanelOpen
                   ? 'bg-brand-500 text-white border-brand-500'
                   : 'border-brand-200 text-brand-500 hover:border-brand-400'
               )}>
               <i className="ti ti-brain text-sm" />
-              Asesor IA
+              <span className="hidden md:inline">Asesor IA</span>
             </button>
 
             <button onClick={() => setShowExport(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-700 text-white transition-colors">
+              className="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-700 text-white transition-colors">
               <i className="ti ti-download text-sm" />
-              Exportar
+              <span className="hidden md:inline">Exportar</span>
             </button>
           </div>
         </div>

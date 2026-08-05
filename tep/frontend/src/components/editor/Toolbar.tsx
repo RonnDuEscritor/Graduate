@@ -91,23 +91,23 @@ export default function Toolbar({ grammarCount = 0 }: ToolbarProps) {
   return (
     <div className="bg-white border-b border-brand-100 flex-shrink-0">
       {/* Tab strip */}
-      <div className="flex items-center border-b border-brand-100 px-2">
+      <div className="flex items-center border-b border-brand-100 px-2 overflow-x-auto">
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={cn('ribbon-tab-btn', tab === t.id && 'active')}>
+            className={cn('ribbon-tab-btn flex-shrink-0', tab === t.id && 'active')}>
             {t.label}
           </button>
         ))}
         {grammarCount > 0 && (
-          <span className="ml-auto mr-2 flex items-center gap-1 text-xs text-orange-600">
+          <span className="ml-auto mr-2 flex-shrink-0 flex items-center gap-1 text-xs text-orange-600">
             <i className="ti ti-alert-triangle text-xs" />
             {grammarCount} {grammarCount === 1 ? 'sugerencia' : 'sugerencias'}
           </span>
         )}
         {normaLabel && (
-          <span className={cn('text-xs text-brand-400 italic whitespace-nowrap', grammarCount === 0 && 'ml-auto')}>
+          <span className={cn('hidden md:inline text-xs text-brand-400 italic whitespace-nowrap flex-shrink-0', grammarCount === 0 && 'ml-auto')}>
             [NORMA] {normaLabel}
           </span>
         )}
