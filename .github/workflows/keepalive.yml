@@ -1,9 +1,11 @@
 name: Keep Supabase awake
 
+# Runs every 3 days -- comfortably under Supabase's 7-day inactivity pause
+# threshold on the free plan, with margin in case a run gets skipped/delayed.
 on:
   schedule:
     - cron: '0 12 */3 * *'
-  workflow_dispatch: {}
+  workflow_dispatch: {} # lets you trigger it manually from the Actions tab too
 
 jobs:
   ping:
