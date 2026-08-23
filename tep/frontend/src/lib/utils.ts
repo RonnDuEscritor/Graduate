@@ -23,8 +23,44 @@ export function countWords(node: TiptapNode | null | undefined): number {
   return text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0
 }
 
-// ── REFERENCE FORMATTERS ─────────────────────────────────────
-export function formatRefAPA(r: PBReference): string {
+// -- REFERENCE FORMATTERS -----------------------------------------
+// Security note (audit 3.5): the formatted string these functions return
+// is rendered via dangerouslySetInnerHTML in ReferencesPanel.tsx, and also
+// dropped straight into an HTML document for the PDF export. Every field
+// here comes from a user-editable form, so it must be HTML-escaped before
+// interpolation -- otherwise a reference title like
+// "<img src=x onerror=alert(1)>" executes as real HTML/JS for anyone who
+// views that reference list. The literal <em> tags below are intentional
+// markup this code adds itself, not user input, so they're left alone.
+export function escapeHtml(value: string | undefined | null): string {
+  if (!value) return ''
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function escapeRefFields(r: PBReference): PBReference {
+  return {
+    ...r,
+    author:    escapeHtml(r.author),
+    initial:   escapeHtml(r.initial),
+    year:      escapeHtml(r.year),
+    title:     escapeHtml(r.title),
+    publisher: escapeHtml(r.publisher),
+    journal:   escapeHtml(r.journal),
+    volume:    escapeHtml(r.volume),
+    issue:     escapeHtml(r.issue),
+    doi:       escapeHtml(r.doi),
+    url:       escapeHtml(r.url),
+    pages:     escapeHtml(r.pages),
+  }
+}
+
+export function formatRefAPA(rawRef: PBReference): string {
+  const r = escapeRefFields(rawRef)
   const init = r.initial ? ` ${r.initial}` : ''
   let s = `${r.author}${init} (${r.year}). <em>${r.title}</em>`
   if (r.ref_type === 'articulo') {
@@ -40,7 +76,8 @@ export function formatRefAPA(r: PBReference): string {
   return s + '.'
 }
 
-export function formatRefVancouver(r: PBReference, num: number): string {
+export function formatRefVancouver(rawRef: PBReference, num: number): string {
+  const r = escapeRefFields(rawRef)
   const init = r.initial ? ` ${r.initial}` : ''
   let s = `${num}. ${r.author}${init}. ${r.title}. `
   if (r.ref_type === 'articulo') {
@@ -57,7 +94,8 @@ export function formatRefVancouver(r: PBReference, num: number): string {
   return s.trimEnd() + '.'
 }
 
-export function formatRefIEEE(r: PBReference, num: number): string {
+export function formatRefIEEE(rawRef: PBReference, num: number): string {
+  const r = escapeRefFields(rawRef)
   const init = r.initial ? `${r.initial} ` : ''
   let s = `[${num}] ${init}${r.author}, "${r.title},"`
   if (r.ref_type === 'articulo') {
@@ -73,7 +111,8 @@ export function formatRefIEEE(r: PBReference, num: number): string {
   return s
 }
 
-export function formatRefChicago(r: PBReference): string {
+export function formatRefChicago(rawRef: PBReference): string {
+  const r = escapeRefFields(rawRef)
   const init = r.initial ? ` ${r.initial}` : ''
   let s = `${r.author}${init}. ${r.year}.`
   if (r.ref_type === 'articulo') {
@@ -93,8 +132,6 @@ export function formatRefChicago(r: PBReference): string {
 
 export function formatRef(r: PBReference, norma: NormaType, num = 1): string {
   if (norma === 'vancouver') return formatRefVancouver(r, num)
-  if (norma === 'ieee')      return formatRefIEEE(r, num)
-  if (norma === 'chicago')   return formatRefChicago(r)
   return formatRefAPA(r)
 }
 
@@ -102,7 +139,7 @@ export function formatRef(r: PBReference, norma: NormaType, num = 1): string {
 export function buildCiteText(
   ref: PBReference, norma: NormaType, num: number, page?: string
 ): string {
-  if (norma === 'vancouver' || norma === 'ieee') {
+  if (norma === 'vancouver') {
     return page ? `[${num}, p. ${page}]` : `[${num}]`
   }
   const last = ref.author.split(',')[0].trim().split(' ').pop() ?? ref.author
@@ -148,6 +185,36 @@ export function relativeTime(date: Date | string): string {
   const h = Math.floor(m/60)
   if (h < 24) return `hace ${h}h`
   return `hace ${Math.floor(h/24)}d`
+}
+
+// -- FRIENDLY ERROR MESSAGES (audit 4.8) ------------------------
+// Supabase/PostgREST error messages come back in English and are often
+// implementation details ("duplicate key value violates unique
+// constraint..."). This maps the common ones to plain Spanish so the user
+// never sees raw backend internals; anything unrecognized falls back to a
+// generic message rather than leaking the original text.
+const FRIENDLY_ERROR_PATTERNS: [RegExp, string][] = [
+  [/invalid login credentials/i,               'Correo o contrasena incorrectos.'],
+  [/user already registered/i,                 'Ya existe una cuenta con este correo.'],
+  [/password should be at least/i,             'La contrasena es demasiado corta.'],
+  [/email not confirmed/i,                     'Debes confirmar tu correo antes de iniciar sesion. Revisa tu bandeja de entrada.'],
+  [/email rate limit exceeded/i,                'Demasiados intentos. Espera un momento y vuelve a intentar.'],
+  [/for security purposes.*after (\d+) seconds/i, 'Por seguridad, espera unos segundos antes de intentar de nuevo.'],
+  [/unable to validate email address/i,         'El correo electronico no es valido.'],
+  [/rate limit/i,                               'Demasiados intentos. Espera un momento y vuelve a intentar.'],
+  [/network|fetch failed|failed to fetch/i,     'No se pudo conectar con el servidor. Revisa tu conexion a internet.'],
+  [/duplicate key value/i,                      'Ese registro ya existe.'],
+  [/violates row-level security/i,              'No tienes permiso para realizar esta accion.'],
+  [/permission denied/i,                        'No tienes permiso para realizar esta accion.'],
+  [/jwt expired/i,                              'Tu sesion expiro. Inicia sesion de nuevo.'],
+]
+
+export function friendlyError(err: unknown, fallback = 'Ocurrio un error. Intenta de nuevo.'): string {
+  const raw = err instanceof Error ? err.message : String(err ?? '')
+  for (const [pattern, friendly] of FRIENDLY_ERROR_PATTERNS) {
+    if (pattern.test(raw)) return friendly
+  }
+  return raw ? fallback : fallback
 }
 
 // ── DEBOUNCE ─────────────────────────────────────────────────

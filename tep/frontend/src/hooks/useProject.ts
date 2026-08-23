@@ -36,30 +36,30 @@ export function useProject() {
   }, [])
 
   const createProject = useCallback(async (
-    title: string, tipo: TipoTesis, norma: NormaType, userId: string
+    title: string, tipo: TipoTesis, norma: NormaType
   ) => {
-    const { data: proj, error: projErr } = await supabase
-      .from('projects')
-      .insert({ user: userId, title, tipo: Number(tipo), norma: String(norma), word_count: 0 })
-      .select().single<PBProject>()
-    if (projErr) throw projErr
-
     const template = TIPOS_TESIS[tipo]
-    const rows: Partial<PBSection>[] = []
+    const sectionsPayload: { name: string, fase: string, order_index: number }[] = []
     let idx = 0
     for (const fase of template.fases) {
       for (const name of fase.items) {
-        rows.push({
-          project: proj.id, name: String(name), fase: String(fase.fase),
-          order_index: idx, word_count: 0,
-        })
+        sectionsPayload.push({ name: String(name), fase: String(fase.fase), order_index: idx })
         idx++
       }
     }
-    if (rows.length > 0) {
-      const { error: secErr } = await supabase.from('sections').insert(rows)
-      if (secErr) throw secErr
-    }
+
+    // Audit 4.5 fix: project + all its template sections are created in a
+    // single Postgres transaction (see create_project_with_sections in
+    // supabase/migrations/0001_init.sql) -- previously these were two
+    // separate inserts, so a failure on the second one could leave a
+    // project with zero sections.
+    const { data: proj, error } = await supabase.rpc('create_project_with_sections', {
+      p_title: title,
+      p_tipo: Number(tipo),
+      p_norma: String(norma),
+      p_sections: sectionsPayload,
+    }).single<PBProject>()
+    if (error) throw error
     return proj
   }, [])
 

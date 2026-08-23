@@ -20,8 +20,8 @@ export default function Toolbar({ grammarCount = 0 }: ToolbarProps) {
     return () => window.removeEventListener('active-editor', handler)
   }, [])
 
-  const isActive = useCallback((type: string, attrs?: Record<string,unknown>) =>
-    editor?.isActive(type, attrs) ?? false, [editor])
+  const isActive = useCallback((typeOrAttrs: string | Record<string,unknown>, attrs?: Record<string,unknown>) =>
+    editor?.isActive(typeOrAttrs as string, attrs) ?? false, [editor])
 
   const Btn = ({
     label, action, active = false, title = '', wide = false, disabled = false

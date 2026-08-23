@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '@/store'
 import { cn } from '@/lib/utils'
+import type { PBSection } from '@/types'
 
 interface ValidationIssue {
   id:       string
@@ -26,7 +27,7 @@ function countWords(text: string): number {
 }
 
 // Academic validation rules
-function validateThesis(sections: ReturnType<typeof useStore>['sections']): ValidationIssue[] {
+function validateThesis(sections: PBSection[]): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   let n = 0
   const id = () => String(++n)

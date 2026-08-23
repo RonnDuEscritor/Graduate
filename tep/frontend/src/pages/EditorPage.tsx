@@ -9,7 +9,6 @@ import type { LTMatch } from '@/hooks/useLanguageTool'
 import Sidebar       from '@/components/sidebar/Sidebar'
 import Toolbar       from '@/components/editor/Toolbar'
 import SectionEditor from '@/components/editor/SectionEditor'
-import AIPanel       from '@/components/ai/AIPanel'
 import ExportPanel   from '@/components/export/ExportPanel'
 
 const ZOOM_LEVELS = [0.6, 0.75, 0.9, 1.0, 1.15, 1.3]
@@ -19,7 +18,7 @@ export default function EditorPage() {
   const navigate  = useNavigate()
   const { user }  = useAuth()
   const { loadProject } = useProject()
-  const { project, sections, norma, aiPanelOpen, setAiPanel, sidebarOpen, setSidebarOpen } = useStore()
+  const { project, sections, norma, sidebarOpen, setSidebarOpen } = useStore()
 
   const [loading,    setLoading]    = useState(true)
   const [showExport, setShowExport] = useState(false)
@@ -121,17 +120,6 @@ export default function EditorPage() {
               </button>
             </div>
 
-            <button onClick={() => setAiPanel(!aiPanelOpen)}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                aiPanelOpen
-                  ? 'bg-brand-500 text-white border-brand-500'
-                  : 'border-brand-200 text-brand-500 hover:border-brand-400'
-              )}>
-              <i className="ti ti-brain text-sm" />
-              <span className="hidden md:inline">Asesor IA</span>
-            </button>
-
             <button onClick={() => setShowExport(true)}
               className="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-700 text-white transition-colors">
               <i className="ti ti-download text-sm" />
@@ -144,36 +132,40 @@ export default function EditorPage() {
 
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 overflow-y-auto overflow-x-auto bg-[#F1E8EA] py-8 px-4">
-            {tipo.fases.map(fase =>
-              fase.items.map(name => {
-                const savedSection = sectionByName.get(name)
-                const sectionId    = savedSection?.id ?? `virtual-${name}`
-                const content      = savedSection?.content ?? null
-                const wordCount    = savedSection?.word_count ?? 0
+            {(() => {
+              let runningIndex = -1
+              return tipo.fases.map(fase =>
+                fase.items.map(name => {
+                  runningIndex++
+                  const orderIndex   = runningIndex
+                  const savedSection = sectionByName.get(name)
+                  const sectionId    = savedSection?.id ?? `virtual-${name}`
+                  const content      = savedSection?.content ?? null
+                  const wordCount    = savedSection?.word_count ?? 0
 
-                return (
-                  <SectionEditor
-                    key={sectionId}
-                    sectionId={sectionId}
-                    sectionName={name}
-                    fase={fase.fase}
-                    isRoman={fase.isRoman}
-                    content={content}
-                    wordCount={wordCount}
-                    pageNum={pageNums.get(name) ?? '1'}
-                    tesisTitulo={project.title}
-                    normaClass={normaClass}
-                    projectId={project.id}
-                    zoom={zoom}
-                    onGrammarResults={handleGrammarResults}
-                  />
-                )
-              })
-            )}
+                  return (
+                    <SectionEditor
+                      key={sectionId}
+                      sectionId={sectionId}
+                      sectionName={name}
+                      fase={fase.fase}
+                      isRoman={fase.isRoman}
+                      orderIndex={orderIndex}
+                      content={content}
+                      wordCount={wordCount}
+                      pageNum={pageNums.get(name) ?? '1'}
+                      tesisTitulo={project.title}
+                      normaClass={normaClass}
+                      projectId={project.id}
+                      zoom={zoom}
+                      onGrammarResults={handleGrammarResults}
+                    />
+                  )
+                })
+              )
+            })()}
             <div className="h-16" />
           </div>
-
-          {aiPanelOpen && <AIPanel onClose={() => setAiPanel(false)} />}
         </div>
       </div>
 

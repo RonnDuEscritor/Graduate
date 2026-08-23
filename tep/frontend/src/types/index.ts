@@ -203,8 +203,6 @@ export interface AppState {
   revisionIssues:  RevisionIssue[]
   isSaving:        boolean
   lastSaved:       Date | null
-  aiPanelOpen:     boolean
-  aiContext:       string
   sidebarOpen:     boolean
 }
 

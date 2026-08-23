@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store'
-import { buildCiteText, lookupDOI, formatRef, cn } from '@/lib/utils'
+import { buildCiteText, lookupDOI, formatRef, cn, friendlyError } from '@/lib/utils'
 import type { PBReference, RefType } from '@/types'
 
 const EMPTY_FORM = (): Omit<PBReference, 'id'|'created'|'updated'|'project'> => ({
@@ -10,7 +10,7 @@ const EMPTY_FORM = (): Omit<PBReference, 'id'|'created'|'updated'|'project'> => 
 })
 
 export default function ReferencesPanel() {
-  const { project, references, citations, norma, activeSectionId, upsertReference, removeReference, addCitation } = useStore()
+  const { project, sections, references, citations, norma, activeSectionId, upsertReference, removeReference, addCitation } = useStore()
   const [showForm, setShowForm] = useState(false)
   const [editId,   setEditId]   = useState<string|null>(null)
   const [form,     setForm]     = useState(EMPTY_FORM())
@@ -57,40 +57,62 @@ export default function ReferencesPanel() {
         upsertReference(created)
       }
       setShowForm(false)
-    } catch (e) { console.error(e) }
+    } catch (e) { alert(friendlyError(e, 'No se pudo guardar la referencia. Intenta de nuevo.')) }
     setSaving(false)
   }
 
   const remove = async (id: string) => {
     if (!confirm('¿Eliminar esta referencia?')) return
     const { error } = await supabase.from('bibliography').delete().eq('id', id)
-    if (error) { console.error(error); return }
+    if (error) { alert(friendlyError(error, 'No se pudo eliminar la referencia. Intenta de nuevo.')); return }
     removeReference(id)
   }
 
   const insertCite = async (ref: PBReference) => {
     if (!activeSectionId) { alert('Haz clic en una sección del editor primero.'); return }
-    const vcMap = useStore.getState().getVancouverOrder()
-    const existingNum = vcMap.get(ref.id) ?? vcMap.size + 1
-    const citeText = buildCiteText(ref, norma, existingNum)
-    // Insert chip via custom event (editor listens for this)
-    window.dispatchEvent(new CustomEvent('insert-cite', {
-      detail: { refId: ref.id, citeText, sectionId: activeSectionId }
-    }))
-    // Record citation in Supabase
-    if (!citations.find(c => c.section === activeSectionId && c.reference === ref.id)) {
+
+    // Audit 4.2 fix: previously the citation chip was inserted into the
+    // editor BEFORE confirming the Supabase insert, so a failed save left
+    // a citation visible on screen that silently vanished on reload (with
+    // no error shown to the user). Now we only touch the editor after the
+    // database write actually succeeds.
+    const alreadyCited = citations.find(c => c.section === activeSectionId && c.reference === ref.id)
+    if (!alreadyCited) {
+      // Audit 4.1 partial fix: order_of_appearance now respects section
+      // reading order (via order_index), not just raw insertion order --
+      // a citation added to an earlier section always sorts before one in
+      // a later section, even if it happens to get saved afterward. True
+      // mid-paragraph ordering would need a Tiptap citation node carrying
+      // the reference id so the document itself could be scanned; the
+      // current cite-chip is plain HTML with no such id, so that's a
+      // separate, larger change not attempted here.
+      const activeSection = sections.find(s => s.id === activeSectionId)
+      const sectionOrderIndex = activeSection?.order_index ?? 9999
+      const citationsInSection = citations.filter(c => c.section === activeSectionId).length
+      const orderOfAppearance = sectionOrderIndex * 10000 + citationsInSection
+
       try {
         const { data: cit, error } = await supabase
           .from('citations')
           .insert({
             project: project!.id, section: activeSectionId, reference: ref.id,
-            order_of_appearance: citations.length + 1,
+            order_of_appearance: orderOfAppearance,
           })
           .select().single()
         if (error) throw error
         addCitation(cit)
-      } catch(e) { console.error(e) }
+      } catch (e) {
+        alert(friendlyError(e, 'No se pudo guardar la cita. Intenta de nuevo.'))
+        return
+      }
     }
+
+    const vcMap = useStore.getState().getVancouverOrder()
+    const existingNum = vcMap.get(ref.id) ?? vcMap.size + 1
+    const citeText = buildCiteText(ref, norma, existingNum)
+    window.dispatchEvent(new CustomEvent('insert-cite', {
+      detail: { refId: ref.id, citeText, sectionId: activeSectionId }
+    }))
   }
 
   const sorted = [...references].sort((a,b) => a.author.localeCompare(b.author, 'es'))

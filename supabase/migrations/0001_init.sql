@@ -189,3 +189,72 @@ create trigger touch_bibliography before update on public.bibliography
 drop trigger if exists touch_citations on public.citations;
 create trigger touch_citations before update on public.citations
   for each row execute procedure public.touch_updated();
+
+-- -- atomic project creation (audit 4.5) --------------------------
+-- Creates the project row AND every template section in a single
+-- transaction, so a failure partway through can never leave a project
+-- with zero sections (which used to force the frontend's "virtual
+-- section" fallback path -- see audit 4.3).
+create or replace function public.create_project_with_sections(
+  p_title text,
+  p_tipo smallint,
+  p_norma text,
+  p_sections jsonb -- [{ "name": "...", "fase": "...", "order_index": 0 }, ...]
+)
+returns public.projects
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_project public.projects;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+
+  insert into public.projects ("user", title, tipo, norma, word_count)
+  values (auth.uid(), p_title, p_tipo, p_norma, 0)
+  returning * into v_project;
+
+  insert into public.sections (project, name, fase, order_index, word_count)
+  select
+    v_project.id,
+    (s->>'name')::text,
+    (s->>'fase')::text,
+    (s->>'order_index')::int,
+    0
+  from jsonb_array_elements(p_sections) as s;
+
+  return v_project;
+end;
+$$;
+
+grant execute on function public.create_project_with_sections(text, smallint, text, jsonb) to authenticated;
+
+-- -- word_count sync (audit 4.4) ------------------------------------
+-- projects.word_count used to be set to 0 at creation and never touched
+-- again, so the Dashboard's project list showed a permanently stale
+-- number while the editor computed the real total live from `sections`.
+-- This trigger keeps the column in sync automatically on every section
+-- insert/update/delete, so there's a single source of truth maintained
+-- by the database instead of the frontend having to remember to sync it.
+create or replace function public.sync_project_word_count()
+returns trigger as $$
+declare
+  v_project_id uuid;
+begin
+  v_project_id := coalesce(NEW.project, OLD.project);
+  update public.projects
+  set word_count = (
+    select coalesce(sum(word_count), 0) from public.sections where project = v_project_id
+  )
+  where id = v_project_id;
+  return null;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+drop trigger if exists sync_word_count on public.sections;
+create trigger sync_word_count
+  after insert or update of word_count or delete on public.sections
+  for each row execute procedure public.sync_project_word_count();

@@ -24,6 +24,7 @@ interface SectionEditorProps {
   sectionName: string
   fase:        string
   isRoman:     boolean
+  orderIndex:  number
   content:     object | null
   wordCount:   number
   pageNum:     string
@@ -35,7 +36,7 @@ interface SectionEditorProps {
 }
 
 export default function SectionEditor({
-  sectionId, sectionName, fase,
+  sectionId, sectionName, fase, orderIndex,
   content, pageNum, tesisTitulo, normaClass, projectId, zoom,
   onGrammarResults,
 }: SectionEditorProps) {
@@ -101,7 +102,7 @@ export default function SectionEditor({
             project:     projectId,
             name:        sectionName,
             fase:        fase,
-            order_index: 1,
+            order_index: orderIndex,
             word_count:  wc,
             content:     json,
           })

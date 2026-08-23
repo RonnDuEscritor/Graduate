@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import { useStore } from '@/store'
 import { TIPOS_TESIS, NORMAS } from '@/types'
-import { formatRef, toRoman } from '@/lib/utils'
+import { formatRef, toRoman, escapeHtml } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import type { PBSection, TiptapNode } from '@/types'
 
+// Security note (audit 3.5): this builds an HTML string that gets fed to
+// document.write() in the print/PDF export window, so any user-entered
+// text has to be escaped -- otherwise typing literal HTML/script tags into
+// a section and exporting it executes as real script in that window.
 function tiptapToHTML(node: TiptapNode | null | undefined): string {
   if (!node) return ''
   if (node.type === 'text') {
-    let text = node.text ?? ''
+    let text = escapeHtml(node.text ?? '')
     node.marks?.forEach(m => {
       if (m.type === 'bold')      text = `<strong>${text}</strong>`
       if (m.type === 'italic')    text = `<em>${text}</em>`
@@ -32,7 +36,7 @@ function tiptapToHTML(node: TiptapNode | null | undefined): string {
     case 'tableRow':      return `<tr>${inner}</tr>`
     case 'tableHeader':   return `<th>${inner}</th>`
     case 'tableCell':     return `<td>${inner}</td>`
-    case 'image':         return `<img src="${attrs.src}" alt="${attrs.alt ?? ''}" style="max-width:100%">`
+    case 'image':         return `<img src="${escapeHtml(String(attrs.src ?? ''))}" alt="${escapeHtml(String(attrs.alt ?? ''))}" style="max-width:100%">`
     default:              return inner
   }
 }
@@ -111,9 +115,9 @@ td{padding:5pt 9pt;border-bottom:.5pt solid #E9BAC5}
 </style></head><body>
 <div style="text-align:center;page-break-after:always;padding:80pt 0">
   <div style="font-size:9pt;text-transform:uppercase;letter-spacing:.12em;color:#7D1A31;margin-bottom:10pt">Tesis de Grado · ${NORMAS[norma].label}</div>
-  <h1 style="font-size:22pt;margin:0 0 10pt">${project.title}</h1>
-  ${project.author ? `<p style="font-size:11pt;color:#666">${project.author}</p>` : ''}
-  ${project.institution ? `<p style="font-size:10pt;color:#888">${project.institution}</p>` : ''}
+  <h1 style="font-size:22pt;margin:0 0 10pt">${escapeHtml(project.title)}</h1>
+  ${project.author ? `<p style="font-size:11pt;color:#666">${escapeHtml(project.author)}</p>` : ''}
+  ${project.institution ? `<p style="font-size:10pt;color:#888">${escapeHtml(project.institution)}</p>` : ''}
   <p style="font-size:10pt;color:#aaa;margin-top:16pt">Graduate Pro — RonnDu Corp. · ${project.year ?? new Date().getFullYear()}</p>
 </div>
 ${bodyHTML}${bibHTML}
