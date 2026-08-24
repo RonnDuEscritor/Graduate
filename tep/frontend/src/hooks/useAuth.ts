@@ -18,6 +18,11 @@ function toAuthUser(session: Session | null): AuthUser | null {
 export function useAuth() {
   const [user, setUser]       = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
+  // Audit 11.1: true for the brief window between clicking the emailed
+  // recovery link and choosing a new password. While true, App.tsx shows
+  // NewPasswordPage instead of the normal app, even though `user` is
+  // already set (Supabase signs the user in via the recovery token itself).
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
 
   useEffect(() => {
     // Check current session
@@ -27,13 +32,14 @@ export function useAuth() {
     })
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(toAuthUser(session))
+      if (event === 'PASSWORD_RECOVERY') setIsPasswordRecovery(true)
     })
     return () => subscription.unsubscribe()
   }, [])
 
-  return { user, loading }
+  return { user, loading, isPasswordRecovery, clearPasswordRecovery: () => setIsPasswordRecovery(false) }
 }
 
 export async function signIn(email: string, password: string) {
@@ -53,4 +59,23 @@ export async function signUp(email: string, password: string, name: string) {
 
 export async function signOut() {
   await supabase.auth.signOut()
+}
+
+// Audit 11.1 fix (IMPORTANTE): there was previously no "forgot password"
+// flow at all -- login, register and logout existed, but a user locked out
+// of their account with a real thesis in progress had no way back in.
+// Supabase emails a recovery link that redirects back to this app with a
+// one-time token; onAuthStateChange fires 'PASSWORD_RECOVERY' when that
+// token is present, which App.tsx listens for to show the "choose a new
+// password" screen (see NewPasswordPage.tsx).
+export async function requestPasswordReset(email: string) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin,
+  })
+  if (error) throw error
+}
+
+export async function updatePassword(newPassword: string) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw error
 }

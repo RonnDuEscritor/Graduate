@@ -154,12 +154,20 @@ export default function SectionEditor({
     }
   }, [isActive, editor, sectionId])
 
-  // Cite insertion
+  // Cite insertion.
+  // Audit 9.1 (GRAVE, partial mitigation): a citation chip is still plain
+  // HTML rather than a semantic Tiptap node carrying { referenceId, page,
+  // display } -- that's a larger change (new Node type + data migration for
+  // existing citations + DOCX export changes) tracked separately, not
+  // attempted here. In the meantime we at least tag every chip with
+  // data-ref-id so the reference it belongs to can be recovered from the
+  // document itself (e.g. for a future migration script), instead of being
+  // pure unlabelled text as before.
   const handleInsertCite = useCallback((e: Event) => {
-    const { citeText, sectionId: targetId } = (e as CustomEvent).detail
+    const { citeText, sectionId: targetId, refId } = (e as CustomEvent).detail
     if (targetId !== (pbIdRef.current ?? sectionId) || !editor) return
     editor.chain().focus().insertContent(
-      `<span class="cite-chip">${citeText}</span>&nbsp;`
+      `<span class="cite-chip" data-ref-id="${refId}">${citeText}</span>&nbsp;`
     ).run()
   }, [editor, sectionId])
 

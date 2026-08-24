@@ -5,9 +5,10 @@ import { useStore } from '@/store'
 import LoginPage    from '@/pages/LoginPage'
 import DashboardPage from '@/pages/DashboardPage'
 import EditorPage   from '@/pages/EditorPage'
+import NewPasswordPage from '@/pages/NewPasswordPage'
 
 export default function App() {
-  const { user, loading } = useAuth()
+  const { user, loading, isPasswordRecovery, clearPasswordRecovery } = useAuth()
   const flushPendingSaves = useStore(s => s.flushPendingSaves)
 
   // Audit 3.4 fix: flush any debounced-but-not-yet-saved section edits
@@ -34,6 +35,14 @@ export default function App() {
       </div>
     </div>
   )
+
+  // Audit 11.1 fix: clicking the emailed recovery link signs the user in
+  // via Supabase's recovery token, so `user` is already set at this point --
+  // without this check they'd land straight in the dashboard with their OLD
+  // password still active and no prompt to actually change it.
+  if (isPasswordRecovery) {
+    return <NewPasswordPage onDone={clearPasswordRecovery} />
+  }
 
   return (
     <Routes>

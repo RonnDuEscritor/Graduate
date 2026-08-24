@@ -217,6 +217,65 @@ export function friendlyError(err: unknown, fallback = 'Ocurrio un error. Intent
   return raw ? fallback : fallback
 }
 
+// ── PAGE ESTIMATION (audit 1.1 / 2.1, CRITICO) ─────────────────
+// Both the editor's page badge and the PDF/DOCX index used to count
+// "1 section = 1 page" no matter how long the section actually was, so a
+// 3-page introduction and a 12-page chapter were both labelled as a single
+// page and the whole index/page-number system drifted further from reality
+// with every section. A fully "real" fix means measuring actual rendered
+// page breaks (from the live DOM in the editor, and from the print/DOCX
+// engine on export) rather than estimating from word count -- that's a
+// bigger, dedicated piece of work (see AUDITORIA notes) that changes how
+// content flows in the editor itself. Until that lands, this at least
+// stops asserting a page count we know is wrong: it estimates real page
+// span from word count using typical words-per-page density for each
+// norma's font/line-spacing, so a 12-page chapter is labelled as
+// spanning ~12 pages instead of being flattened to "page 4".
+const WORDS_PER_PAGE: Record<NormaType, number> = {
+  // Times New Roman 12pt, interlineado 2.0, margenes 2.54cm (APA 7)
+  apa:       270,
+  // Arial 11pt, interlineado 1.5 (Vancouver)
+  vancouver: 420,
+  // Inter 14px, interlineado 1.85 (Libre)
+  libre:     330,
+}
+
+/** Estimated number of physical pages a section's content would occupy. Always at least 1. */
+export function estimatePageCount(wordCount: number, norma: NormaType): number {
+  const density = WORDS_PER_PAGE[norma] ?? WORDS_PER_PAGE.libre
+  return Math.max(1, Math.ceil(wordCount / density))
+}
+
+export interface PageRange { start: number; end: number; label: string }
+
+/**
+ * Walks a list of { name, wordCount } entries in reading order, in either
+ * roman or arabic numbering, and assigns each one an estimated page range
+ * based on estimatePageCount() -- so a section spanning several pages shows
+ * a range ("12-15") instead of a single fabricated number, and the next
+ * section's start page actually accounts for that span.
+ */
+export function estimatePageRanges(
+  items: { name: string, wordCount: number }[],
+  norma: NormaType,
+  isRoman: boolean,
+  startAt = 1,
+): Map<string, PageRange> {
+  const ranges = new Map<string, PageRange>()
+  let cursor = startAt
+  for (const item of items) {
+    const span  = estimatePageCount(item.wordCount, norma)
+    const start = cursor
+    const end   = cursor + span - 1
+    const label = isRoman
+      ? (start === end ? toRoman(start) : `${toRoman(start)}-${toRoman(end)}`)
+      : (start === end ? String(start) : `${start}-${end}`)
+    ranges.set(item.name, { start, end, label })
+    cursor = end + 1
+  }
+  return ranges
+}
+
 // ── DEBOUNCE ─────────────────────────────────────────────────
 export function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
   let t: ReturnType<typeof setTimeout>

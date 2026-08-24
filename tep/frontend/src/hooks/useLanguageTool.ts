@@ -1,8 +1,13 @@
 import { useCallback, useRef } from 'react'
-import type { Editor } from '@tiptap/core'
+import { supabase } from '@/lib/supabase'
 
-// LanguageTool API - free, no key needed for public endpoint
-const LT_API = 'https://api.languagetool.org/v2/check'
+// Audit 6.1 fix (GRAVE / privacidad y escalabilidad): this used to call
+// https://api.languagetool.org/v2/check directly from the browser, sending
+// the student's thesis text straight to a third-party service with no
+// server-side control. It now goes through the 'check-grammar' Supabase
+// Edge Function, which requires an authenticated user and applies its own
+// length cap / throttling before ever reaching LanguageTool. See
+// supabase/functions/check-grammar/index.ts.
 
 export interface LTMatch {
   message:     string
@@ -22,22 +27,12 @@ export interface LTResult {
   matches: LTMatch[]
 }
 
-// Debounce helper
-function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
-  let timer: ReturnType<typeof setTimeout>
-  return ((...args: unknown[]) => {
-    clearTimeout(timer)
-    timer = setTimeout(() => fn(...args), ms)
-  }) as T
-}
-
-// Extract plain text from Tiptap editor preserving offsets
-function getPlainText(editor: Editor): string {
-  return editor.getText()
-}
-
 export function useLanguageTool() {
   const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Audit 6.1: aborts any in-flight check before starting a new one, so
+  // rapid edits don't pile up parallel requests (each editor previously had
+  // no way to cancel a stale request already on the wire).
+  const abortRef = useRef<AbortController | null>(null)
 
   const checkText = useCallback(async (
     text: string,
@@ -49,27 +44,33 @@ export function useLanguageTool() {
       return
     }
 
-    try {
-      const body = new URLSearchParams({
-        text,
-        language,
-        enabledOnly: 'false',
-        level: 'picky',
-      })
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
 
-      const res = await fetch(LT_API, {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return // not logged in (e.g. session expired mid-edit) -- fail silently, don't block the editor
+
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-grammar`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ text, language }),
+        signal: controller.signal,
       })
 
       if (!res.ok) return
 
       const data: LTResult = await res.json()
-      onResults(data.matches)
+      onResults(data.matches ?? [])
     } catch (e) {
-      // Silently fail — don't block the editor
-      console.warn('LanguageTool check failed:', e)
+      if ((e as { name?: string })?.name === 'AbortError') return // superseded by a newer check, not a real failure
+      // Silently fail otherwise -- don't block the editor
+      console.warn('Grammar check failed:', e)
     }
   }, [])
 

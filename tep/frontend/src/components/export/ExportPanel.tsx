@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '@/store'
 import { TIPOS_TESIS, NORMAS } from '@/types'
-import { formatRef, toRoman, escapeHtml } from '@/lib/utils'
+import { formatRef, escapeHtml, estimatePageRanges } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import type { PBSection, TiptapNode } from '@/types'
 
@@ -65,16 +65,33 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
     const secMap = new Map<string, PBSection>()
     sections.forEach(s => secMap.set(s.name, s))
 
-    let arPg = 1, romPg = 1
     let bodyHTML = ''
 
     const AUTO_IDX = ['Índice general','Índice de tablas','Índice de figuras','Índice de tablas y figuras','Índice de cuadros comparativos']
 
+    // Audit 2.1 fix (CRITICO): this used to label every section's printed
+    // page number as a single incrementing integer ("1 seccion = 1
+    // pagina"), so a 3-page introduction and a 12-page chapter were both
+    // stamped as one page, and everything after the first long chapter was
+    // wrong by however many real pages it actually spanned. Labels are now
+    // an estimated range from estimatePageRanges() (same estimator used in
+    // the editor's own page badges, see EditorPage.tsx), so a long chapter
+    // reads "4-15" instead of falsely claiming "4". The browser's print
+    // engine still paginates the actual printed content correctly on its
+    // own -- this only fixes the human-readable page LABEL shown per
+    // section and in the table of contents (buildTOCHTML below); real
+    // pixel-accurate estimation would require measuring the live DOM,
+    // which is a larger change tracked separately.
+    let arCursor = 1, romCursor = 1
     t.fases.forEach(fase => {
-      fase.items.forEach(name => {
+      const items  = fase.items.map(name => ({ name, wordCount: secMap.get(name)?.word_count ?? 0 }))
+      const ranges = estimatePageRanges(items, norma, fase.isRoman, fase.isRoman ? romCursor : arCursor)
+      const last   = [...ranges.values()].pop()
+      if (last) { if (fase.isRoman) romCursor = last.end + 1; else arCursor = last.end + 1 }
+
+      items.forEach(({ name }) => {
         const sec = secMap.get(name)
-        const pg  = fase.isRoman ? toRoman(romPg) : arPg
-        if (fase.isRoman) romPg++; else arPg++
+        const pg  = ranges.get(name)?.label ?? ''
 
         const isAutoIdx  = AUTO_IDX.some(x => name.startsWith(x))
         const content = sec?.content ? tiptapToHTML(sec.content as unknown as TiptapNode) : '<p style="color:#aaa;font-style:italic">Sin contenido.</p>'
@@ -125,13 +142,18 @@ ${bodyHTML}${bibHTML}
   }
 
   const buildTOCHTML = (t: typeof TIPOS_TESIS[0], secs: PBSection[]) => {
+    const secByName = new Map(secs.map(s => [s.name, s]))
     let html = '<div style="font-size:11pt">'
-    let ar = 1, ro = 1
+    let arCursor = 1, romCursor = 1
     t.fases.forEach(f => {
+      const items  = f.items.map(name => ({ name, wordCount: secByName.get(name)?.word_count ?? 0 }))
+      const ranges = estimatePageRanges(items, norma, f.isRoman, f.isRoman ? romCursor : arCursor)
+      const last   = [...ranges.values()].pop()
+      if (last) { if (f.isRoman) romCursor = last.end + 1; else arCursor = last.end + 1 }
+
       html += `<div style="font-size:8pt;text-transform:uppercase;letter-spacing:.1em;color:#A8546A;margin:12pt 0 4pt;border-bottom:.5pt solid #ddd;padding-bottom:3pt">${f.fase}</div>`
-      f.items.forEach(name => {
-        const pg = f.isRoman ? toRoman(ro) : ar
-        if (f.isRoman) ro++; else ar++
+      items.forEach(({ name }) => {
+        const pg = ranges.get(name)?.label ?? ''
         html += `<div style="display:flex;justify-content:space-between;padding:3pt 0;border-bottom:.5pt dotted #eee"><span>${name}</span><span style="color:#7D1A31;font-weight:500">${pg}</span></div>`
       })
     })

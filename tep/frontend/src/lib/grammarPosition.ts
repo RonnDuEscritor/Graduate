@@ -14,34 +14,47 @@ interface OffsetMap {
 }
 
 /**
- * Walks the document the same way Tiptap's editor.getText() does (joining
- * block nodes with BLOCK_SEPARATOR) while recording, for every character in
- * the resulting plain text, the matching ProseMirror position. This lets us
- * translate LanguageTool's offset/length (computed against that plain text)
- * back into real editor positions so we can apply marks.
+ * Walks the document the same way ProseMirror's Node.textBetween() does
+ * (which is what Tiptap's editor.getText() calls under the hood) while
+ * recording, for every character in the resulting plain text, the matching
+ * ProseMirror position. This lets us translate LanguageTool's offset/length
+ * (computed against that plain text) back into real editor positions so we
+ * can apply marks.
+ *
+ * Audit 5.1 fix (GRAVE): the previous version inserted a BLOCK_SEPARATOR
+ * before *every* block-type node except the very first one. Because
+ * doc.descendants() visits wrapper nodes too (a single paragraph inside a
+ * list item inside a bullet list is 3 nested block nodes), that inserted
+ * several separators in a row for structures like lists and tables --
+ * something the real textBetween()/getText() never does. The drift
+ * accumulated with every list/table in the section, so LanguageTool offsets
+ * increasingly pointed at the wrong word the further into the document a
+ * match was. The fix mirrors ProseMirror's actual algorithm: a separator is
+ * only emitted right before the first block boundary encountered *after*
+ * some text was written (tracked via `separated`), matching exactly how
+ * many separator characters getText() itself produces.
  */
 function buildOffsetMap(doc: PMNode): OffsetMap {
   let text = ''
   const offsetToPos: number[] = []
-  let first = true
+  let separated = true // mirrors ProseMirror's initial `separated = true`
 
-  doc.descendants((node, pos) => {
+  doc.nodesBetween(0, doc.content.size, (node, pos) => {
     if (node.isText) {
       const nodeText = node.text || ''
       for (let i = 0; i < nodeText.length; i++) {
         offsetToPos.push(pos + i)
       }
       text += nodeText
+      separated = false
       return
     }
-    if (node.isBlock && node.type.name !== 'doc') {
-      if (!first) {
-        for (let i = 0; i < BLOCK_SEPARATOR.length; i++) {
-          offsetToPos.push(pos)
-        }
-        text += BLOCK_SEPARATOR
+    if (!separated && node.isBlock) {
+      for (let i = 0; i < BLOCK_SEPARATOR.length; i++) {
+        offsetToPos.push(pos)
       }
-      first = false
+      text += BLOCK_SEPARATOR
+      separated = true
     }
   })
 

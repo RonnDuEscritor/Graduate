@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store'
 import { TIPOS_TESIS } from '@/types'
+import { getLocalDraft, clearLocalDraft } from '@/lib/localDraftBackup'
 import type { PBProject, PBSection, PBReference, PBCitation, TipoTesis, NormaType } from '@/types'
 
 export function useProject() {
@@ -20,11 +21,42 @@ export function useProject() {
     if (citsRes.error) throw citsRes.error
 
     const proj = projRes.data
+    const secs = (secsRes.data ?? []) as PBSection[]
     setProject(proj)
     setNorma(proj.norma)
-    setSections((secsRes.data ?? []) as PBSection[])
+    setSections(secs)
     setReferences((refsRes.data ?? []) as PBReference[])
     setCitations((citsRes.data ?? []) as PBCitation[])
+
+    // Audit 7.1/8.1 fix: if a local draft exists for a section and is newer
+    // than what Supabase has, the last save attempt for that section never
+    // completed (closed tab, connection loss, Supabase outage mid-write).
+    // Offer to restore it instead of silently opening the older server copy.
+    const recoverable = secs.filter(s => {
+      const draft = getLocalDraft(s.id)
+      if (!draft) return false
+      const serverTime = s.updated ? new Date(s.updated).getTime() : 0
+      return draft.savedAt > serverTime
+    })
+    if (recoverable.length > 0) {
+      const names = recoverable.map(s => `- ${s.name}`).join('\n')
+      const restore = confirm(
+        `Se encontraron cambios sin guardar de una sesion anterior en:\n${names}\n\n` +
+        `Es posible que el navegador se haya cerrado antes de terminar de guardar. ` +
+        `Aceptar para RECUPERAR esos cambios, Cancelar para descartarlos y mantener la ultima version guardada.`
+      )
+      const { saveSectionContent } = useStore.getState()
+      recoverable.forEach(s => {
+        const draft = getLocalDraft(s.id)
+        if (!draft) return
+        if (restore) {
+          saveSectionContent(s.id, draft.content, draft.wordCount) // re-queues the normal debounced Supabase save
+        } else {
+          clearLocalDraft(s.id)
+        }
+      })
+    }
+
     return proj
   }, [setProject, setSections, setReferences, setCitations, setNorma])
 

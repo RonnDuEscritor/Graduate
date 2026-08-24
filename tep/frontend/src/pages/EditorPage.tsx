@@ -4,7 +4,7 @@ import { useStore } from '@/store'
 import { useProject } from '@/hooks/useProject'
 import { useAuth } from '@/hooks/useAuth'
 import { TIPOS_TESIS, NORMAS } from '@/types'
-import { toRoman, cn } from '@/lib/utils'
+import { estimatePageRanges, cn } from '@/lib/utils'
 import type { LTMatch } from '@/hooks/useLanguageTool'
 import Sidebar       from '@/components/sidebar/Sidebar'
 import Toolbar       from '@/components/editor/Toolbar'
@@ -68,16 +68,27 @@ export default function EditorPage() {
   const normaClass = NORMAS[norma].cssClass
   const zoom       = ZOOM_LEVELS[zoomIdx]
 
-  let arPg = 1, romPg = 1
-  const pageNums      = new Map<string, string>()
-  const sectionByName = new Map(sections.map(s => [s.name, s]))
-
+  // Audit 1.1 fix (CRITICO): previously incremented one page number per
+  // section regardless of length ("1 seccion = 1 pagina"), so the badge
+  // shown on a 3-page introduction and a 12-page chapter both just said a
+  // single number, and every section after a long one was off by however
+  // many real pages that chapter actually spanned. Page numbers here are
+  // now an estimated RANGE based on each section's actual word count (see
+  // estimatePageRanges in '@/lib/utils') -- still an estimate, not a
+  // pixel-accurate page break, but it no longer asserts a page count we
+  // know to be wrong, and it visibly says "~" to signal that.
+  const sectionByName  = new Map(sections.map(s => [s.name, s]))
+  let arCursor = 1, romCursor = 1
+  const pageNums = new Map<string, string>()
   tipo.fases.forEach(fase => {
-    fase.items.forEach(name => {
-      const pgLabel = fase.isRoman ? toRoman(romPg) : String(arPg)
-      pageNums.set(name, pgLabel)
-      if (fase.isRoman) romPg++; else arPg++
+    const items = fase.items.map(name => ({ name, wordCount: sectionByName.get(name)?.word_count ?? 0 }))
+    const ranges = estimatePageRanges(items, norma, fase.isRoman, fase.isRoman ? romCursor : arCursor)
+    items.forEach(({ name }) => {
+      const r = ranges.get(name)
+      if (r) pageNums.set(name, `~${r.label}`)
     })
+    const last = [...ranges.values()].pop()
+    if (last) { if (fase.isRoman) romCursor = last.end + 1; else arCursor = last.end + 1 }
   })
 
   return (

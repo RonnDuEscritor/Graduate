@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
+import { saveDraftLocally, clearLocalDraft } from '@/lib/localDraftBackup'
 import type { AppState, PBProject, PBSection, PBReference, PBCitation, RevisionIssue, NormaType, TiptapDoc } from '@/types'
 
 // Module-level (not reactive state -- pure bookkeeping for the per-section
@@ -18,8 +19,17 @@ function flushSection(sectionId: string, set: (partial: Partial<AppState>) => vo
     .update({ content: payload.content, word_count: payload.wordCount })
     .eq('id', sectionId)
     .then(({ error }) => {
-      if (error) { console.error('Save error:', error); set({ isSaving: false }) }
-      else set({ isSaving: false, lastSaved: new Date() })
+      if (error) {
+        // Audit 7.1/8.1: on a failed write we deliberately KEEP the local
+        // draft (instead of clearing it) so the content survives a lost
+        // connection or a Supabase outage and can still be recovered/retried
+        // the next time this project loads.
+        console.error('Save error:', error)
+        set({ isSaving: false })
+      } else {
+        clearLocalDraft(sectionId) // server now has this content -- the local backstop is no longer needed
+        set({ isSaving: false, lastSaved: new Date() })
+      }
     })
 }
 
@@ -92,6 +102,11 @@ export const useStore = create<AppState & Actions>((set, get) => ({
         s.id === sectionId ? { ...s, content, word_count: wordCount } : s
       ),
     }))
+    // Audit 7.1/8.1 fix: written synchronously, immediately -- well before
+    // the 1.5s debounce below even starts its Supabase request -- so a
+    // closed tab or lost connection can never lose more than what's already
+    // sitting in localStorage.
+    saveDraftLocally(sectionId, content, wordCount)
     pendingPayloads.set(sectionId, { content, wordCount })
     const existingTimer = pendingTimers.get(sectionId)
     if (existingTimer) clearTimeout(existingTimer)
