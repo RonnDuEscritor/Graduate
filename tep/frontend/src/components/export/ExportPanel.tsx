@@ -37,6 +37,12 @@ function tiptapToHTML(node: TiptapNode | null | undefined): string {
     case 'tableHeader':   return `<th>${inner}</th>`
     case 'tableCell':     return `<td>${inner}</td>`
     case 'image':         return `<img src="${escapeHtml(String(attrs.src ?? ''))}" alt="${escapeHtml(String(attrs.alt ?? ''))}" style="max-width:100%">`
+    // Audit 2.1: citation is an atomic node (no .content children), so it
+    // rendered as an empty string via the default case below until this
+    // was added -- citations would have silently vanished from every PDF
+    // export. `display` is the human-readable text set when the citation
+    // was inserted, e.g. "(Garcia, 2024)" or "[3]".
+    case 'citation':      return `<span class="cite-chip">${escapeHtml(String(attrs.display ?? ''))}</span>`
     default:              return inner
   }
 }

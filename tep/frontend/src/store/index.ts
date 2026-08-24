@@ -48,6 +48,7 @@ interface Actions {
   // Section save -- debounced per-section, goes to Supabase
   saveSectionContent: (sectionId: string, content: TiptapDoc, wordCount: number) => void
   flushPendingSaves:  () => void
+  syncSectionCitations: (sectionId: string, refIdsInOrder: string[]) => void
 
   // References
   upsertReference: (r: PBReference) => void
@@ -121,6 +122,60 @@ export const useStore = create<AppState & Actions>((set, get) => ({
     pendingTimers.forEach((timer, sectionId) => {
       clearTimeout(timer)
       flushSection(sectionId, set)
+    })
+  },
+
+  // Audit 2.1 fix (GRAVE): reconciles the `citations` table against what
+  // is ACTUALLY in the document right now (see extractCitationRefIds in
+  // lib/utils.ts), instead of trusting rows written at insertion time that
+  // could silently go stale (e.g. the user deletes a citation chip by hand
+  // and the database never finds out). Called from SectionEditor on every
+  // save, but only fires network calls when the extracted reference list
+  // actually differs from what's already known.
+  syncSectionCitations: (sectionId, refIdsInOrder) => {
+    const { project, sections, citations } = get()
+    if (!project) return
+    const section = sections.find(s => s.id === sectionId)
+    const sectionOrderIndex = section?.order_index ?? 9999
+
+    const existing = citations.filter(c => c.section === sectionId)
+    const existingByRef = new Map(existing.map(c => [c.reference, c]))
+    const newRefSet = new Set(refIdsInOrder)
+
+    // Reference no longer appears anywhere in the document -> drop the row.
+    // This is the exact fix for the drift the audit flagged: previously
+    // deleting a chip left the database (and therefore the bibliography
+    // entry and Vancouver numbering) untouched.
+    existing.forEach(c => {
+      if (newRefSet.has(c.reference)) return
+      supabase.from('citations').delete().eq('id', c.id).then(({ error }) => {
+        if (error) console.error('Citation cleanup error:', error)
+      })
+      set(s => ({ citations: s.citations.filter(x => x.id !== c.id) }))
+    })
+
+    // New reference, or one whose position in the document moved (a
+    // paragraph got reordered/deleted) -> insert or correct
+    // order_of_appearance, which is what drives real reading-order
+    // Vancouver numbering (audit item 3).
+    refIdsInOrder.forEach((refId, position) => {
+      const orderOfAppearance = sectionOrderIndex * 10000 + position
+      const row = existingByRef.get(refId)
+      if (!row) {
+        supabase.from('citations')
+          .insert({ project: project.id, section: sectionId, reference: refId, order_of_appearance: orderOfAppearance })
+          .select().single()
+          .then(({ data, error }) => {
+            if (error) { console.error('Citation insert error:', error); return }
+            set(s => ({ citations: [...s.citations, data] }))
+          })
+      } else if (row.order_of_appearance !== orderOfAppearance) {
+        supabase.from('citations').update({ order_of_appearance: orderOfAppearance }).eq('id', row.id)
+          .then(({ error }) => { if (error) console.error('Citation reorder error:', error) })
+        set(s => ({
+          citations: s.citations.map(x => x.id === row.id ? { ...x, order_of_appearance: orderOfAppearance } : x),
+        }))
+      }
     })
   },
 

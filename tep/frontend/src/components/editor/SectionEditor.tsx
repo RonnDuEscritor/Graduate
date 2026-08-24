@@ -15,9 +15,11 @@ import { useStore } from '@/store'
 import { countWords } from '@/lib/utils'
 import { useLanguageTool } from '@/hooks/useLanguageTool'
 import type { LTMatch } from '@/hooks/useLanguageTool'
-import type { TiptapDoc } from '@/types'
+import type { TiptapDoc, TiptapNode } from '@/types'
 import { GrammarErrorMark } from '@/extensions/GrammarErrorMark'
+import { CitationNode } from '@/extensions/CitationNode'
 import { applyGrammarMarks, applyGrammarFix, stripGrammarMarksFromJSON } from '@/lib/grammarPosition'
+import { extractCitationRefIds } from '@/lib/utils'
 
 interface SectionEditorProps {
   sectionId:   string
@@ -40,10 +42,14 @@ export default function SectionEditor({
   content, pageNum, tesisTitulo, normaClass, projectId, zoom,
   onGrammarResults,
 }: SectionEditorProps) {
-  const { activeSectionId, setActiveSection, saveSectionContent, setSaving, setLastSaved } = useStore()
+  const { activeSectionId, setActiveSection, saveSectionContent, setSaving, setLastSaved, syncSectionCitations } = useStore()
   const isActive  = activeSectionId === sectionId
   const isVirtual = sectionId.startsWith('virtual-')
   const pbIdRef   = useRef<string | null>(isVirtual ? null : sectionId)
+  // Audit 2.1: remembers the last citation-refId list we reconciled to the
+  // database, so syncSectionCitations only fires network calls when that
+  // list actually changed -- not on every keystroke of an unrelated edit.
+  const lastCitationRefsRef = useRef<string>('')
 
   const { scheduleCheck } = useLanguageTool()
 
@@ -57,6 +63,7 @@ export default function SectionEditor({
       Table.configure({ resizable: true }),
       TableRow, TableCell, TableHeader,
       GrammarErrorMark,
+      CitationNode,
       Placeholder.configure({
         placeholder: `Escribe el contenido de "${sectionName}"...`,
         emptyEditorClass: 'is-editor-empty',
@@ -119,7 +126,22 @@ export default function SectionEditor({
     } else {
       saveSectionContent(pbIdRef.current, json, wc)
     }
-  }, [projectId, sectionName, fase, saveSectionContent, setSaving, setLastSaved])
+
+    // Audit 2.1/3.1 fix: reconcile the citations table against what the
+    // document actually contains right now, so deleting a citation chip
+    // (or moving a paragraph) is reflected in the bibliography and
+    // Vancouver numbering on the very next save -- not left stale. Skipped
+    // when the extracted reference list hasn't changed, so an unrelated
+    // keystroke doesn't trigger citation network calls.
+    if (pbIdRef.current) {
+      const refIds = extractCitationRefIds(json as unknown as TiptapNode)
+      const signature = refIds.join(',')
+      if (signature !== lastCitationRefsRef.current) {
+        lastCitationRefsRef.current = signature
+        syncSectionCitations(pbIdRef.current, refIds)
+      }
+    }
+  }, [projectId, sectionName, fase, saveSectionContent, setSaving, setLastSaved, syncSectionCitations])
 
   // Manual save
   useEffect(() => {
@@ -155,20 +177,16 @@ export default function SectionEditor({
   }, [isActive, editor, sectionId])
 
   // Cite insertion.
-  // Audit 9.1 (GRAVE, partial mitigation): a citation chip is still plain
-  // HTML rather than a semantic Tiptap node carrying { referenceId, page,
-  // display } -- that's a larger change (new Node type + data migration for
-  // existing citations + DOCX export changes) tracked separately, not
-  // attempted here. In the meantime we at least tag every chip with
-  // data-ref-id so the reference it belongs to can be recovered from the
-  // document itself (e.g. for a future migration script), instead of being
-  // pure unlabelled text as before.
+  // Audit 2.1 fix (GRAVE): now inserts a real 'citation' Tiptap node
+  // (referenceId + page + display) instead of a plain HTML span, so the
+  // document itself can be scanned as the source of truth for what's
+  // actually cited (see extractCitationRefIds/syncSectionCitations).
   const handleInsertCite = useCallback((e: Event) => {
-    const { citeText, sectionId: targetId, refId } = (e as CustomEvent).detail
+    const { citeText, sectionId: targetId, refId, page, citationStyle } = (e as CustomEvent).detail
     if (targetId !== (pbIdRef.current ?? sectionId) || !editor) return
-    editor.chain().focus().insertContent(
-      `<span class="cite-chip" data-ref-id="${refId}">${citeText}</span>&nbsp;`
-    ).run()
+    editor.chain().focus().insertCitation({
+      referenceId: refId, page: page ?? null, display: citeText, citationStyle: citationStyle ?? null,
+    }).run()
   }, [editor, sectionId])
 
   useEffect(() => {

@@ -82,12 +82,20 @@ function marksToRunOptions(marks: any[] | undefined) {
   return opts
 }
 
-// Flattens a paragraph-like node's inline content (text + hardBreak) into TextRuns
+// Flattens a paragraph-like node's inline content (text + hardBreak +
+// citation) into TextRuns.
+// Audit 2.1 fix: 'citation' is a new atomic Tiptap node (see
+// frontend/src/extensions/CitationNode.ts) with no text content of its
+// own -- without this branch every citation node fell through to the
+// final `else` below as if it were a hardBreak, so every citation in the
+// document silently disappeared from the exported .docx.
 function inlineToRuns(content: any[] | undefined) {
   const runs: any[] = []
   ;(content || []).forEach(n => {
     if (n.type === 'text') {
       runs.push(new TextRun({ text: n.text || '', ...marksToRunOptions(n.marks) }))
+    } else if (n.type === 'citation') {
+      runs.push(new TextRun({ text: (n.attrs && n.attrs.display) || '' }))
     } else if (n.type === 'hardBreak') {
       runs.push(new TextRun({ text: '', break: 1 }))
     }
@@ -166,13 +174,19 @@ function blockToDocx(node: any, ctx: any): any[] {
       // Blockquotes are simple in Tiptap's schema (a sequence of paragraphs),
       // so render each inner paragraph directly with indent + left border + italics
       // rather than reusing the generic paragraph path.
+      // Audit 2.1: adds a citation branch here too (mirroring inlineToRuns
+      // above) so a citation inside a blockquote renders instead of being
+      // silently dropped as if it were a hardBreak; italics is kept applied
+      // to text runs specifically, same as before this fix.
       return (node.content || []).map((child: any) => new Paragraph({
         indent: { left: 480 },
         border: { left: { style: BorderStyle.SINGLE, size: 12, color: 'CB8698', space: 8 } },
         children: (child.content && child.content.length)
-          ? child.content.map((n: any) => n.type === 'text'
-              ? new TextRun({ text: n.text || '', italics: true, ...marksToRunOptions(n.marks) })
-              : new TextRun({ text: '', break: 1 }))
+          ? child.content.map((n: any) => {
+              if (n.type === 'text') return new TextRun({ text: n.text || '', italics: true, ...marksToRunOptions(n.marks) })
+              if (n.type === 'citation') return new TextRun({ text: (n.attrs && n.attrs.display) || '', italics: true })
+              return new TextRun({ text: '', break: 1 })
+            })
           : [new TextRun({ text: '', italics: true })],
       }))
     }

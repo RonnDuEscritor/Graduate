@@ -10,7 +10,7 @@ const EMPTY_FORM = (): Omit<PBReference, 'id'|'created'|'updated'|'project'> => 
 })
 
 export default function ReferencesPanel() {
-  const { project, sections, references, citations, norma, activeSectionId, upsertReference, removeReference, addCitation } = useStore()
+  const { project, references, citations, norma, activeSectionId, upsertReference, removeReference } = useStore()
   const [showForm, setShowForm] = useState(false)
   const [editId,   setEditId]   = useState<string|null>(null)
   const [form,     setForm]     = useState(EMPTY_FORM())
@@ -71,47 +71,19 @@ export default function ReferencesPanel() {
   const insertCite = async (ref: PBReference) => {
     if (!activeSectionId) { alert('Haz clic en una sección del editor primero.'); return }
 
-    // Audit 4.2 fix: previously the citation chip was inserted into the
-    // editor BEFORE confirming the Supabase insert, so a failed save left
-    // a citation visible on screen that silently vanished on reload (with
-    // no error shown to the user). Now we only touch the editor after the
-    // database write actually succeeds.
-    const alreadyCited = citations.find(c => c.section === activeSectionId && c.reference === ref.id)
-    if (!alreadyCited) {
-      // Audit 4.1 partial fix: order_of_appearance now respects section
-      // reading order (via order_index), not just raw insertion order --
-      // a citation added to an earlier section always sorts before one in
-      // a later section, even if it happens to get saved afterward. True
-      // mid-paragraph ordering would need a Tiptap citation node carrying
-      // the reference id so the document itself could be scanned; the
-      // current cite-chip is plain HTML with no such id, so that's a
-      // separate, larger change not attempted here.
-      const activeSection = sections.find(s => s.id === activeSectionId)
-      const sectionOrderIndex = activeSection?.order_index ?? 9999
-      const citationsInSection = citations.filter(c => c.section === activeSectionId).length
-      const orderOfAppearance = sectionOrderIndex * 10000 + citationsInSection
-
-      try {
-        const { data: cit, error } = await supabase
-          .from('citations')
-          .insert({
-            project: project!.id, section: activeSectionId, reference: ref.id,
-            order_of_appearance: orderOfAppearance,
-          })
-          .select().single()
-        if (error) throw error
-        addCitation(cit)
-      } catch (e) {
-        alert(friendlyError(e, 'No se pudo guardar la cita. Intenta de nuevo.'))
-        return
-      }
-    }
-
+    // Audit 2.1 fix (GRAVE): this used to write the `citations` row here,
+    // directly, before touching the editor at all -- a second source of
+    // truth that could drift from whatever ended up in the document (e.g.
+    // the user later deletes the chip by hand, and this row never finds
+    // out). Now we only insert the real citation node into the document;
+    // SectionEditor's save handler scans the document itself and
+    // reconciles the `citations` table to match on every save, so the
+    // document is the only thing that has to stay correct.
     const vcMap = useStore.getState().getVancouverOrder()
     const existingNum = vcMap.get(ref.id) ?? vcMap.size + 1
     const citeText = buildCiteText(ref, norma, existingNum)
     window.dispatchEvent(new CustomEvent('insert-cite', {
-      detail: { refId: ref.id, citeText, sectionId: activeSectionId }
+      detail: { refId: ref.id, citeText, sectionId: activeSectionId, citationStyle: norma }
     }))
   }
 

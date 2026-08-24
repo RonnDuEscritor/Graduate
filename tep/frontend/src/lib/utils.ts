@@ -146,6 +146,30 @@ export function buildCiteText(
   return page ? `(${last}, ${ref.year}, p. ${page})` : `(${last}, ${ref.year})`
 }
 
+// ── CITATION NODE SCANNING (audit 2.1 / 3.1, GRAVE) ─────────────
+// Walks a section's Tiptap JSON in document order and returns the
+// referenceId of every 'citation' node found, deduplicated to first
+// occurrence. This is what makes the document itself the single source of
+// truth for "what is actually cited, and in what order" -- see
+// syncSectionCitations() in store/index.ts, which reconciles the
+// `citations` table against exactly this list on every save instead of
+// trusting a separately-maintained database row that the document could
+// drift away from (e.g. by the user deleting a citation chip by hand).
+export function extractCitationRefIds(doc: TiptapNode | null | undefined): string[] {
+  const seen = new Set<string>()
+  const ordered: string[] = []
+  const walk = (n: TiptapNode) => {
+    if (n.type === 'citation') {
+      const refId = (n.attrs as { referenceId?: string } | undefined)?.referenceId
+      if (refId && !seen.has(refId)) { seen.add(refId); ordered.push(refId) }
+      return
+    }
+    n.content?.forEach(walk)
+  }
+  if (doc) walk(doc)
+  return ordered
+}
+
 // ── DOI LOOKUP via CrossRef ──────────────────────────────────
 export async function lookupDOI(doi: string): Promise<Partial<PBReference> | null> {
   try {

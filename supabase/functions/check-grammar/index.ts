@@ -24,18 +24,25 @@ const LT_API = 'https://api.languagetool.org/v2/check'
 // hammering the upstream API with an enormous payload.
 const MAX_TEXT_LENGTH = 20000
 
-// Very small in-memory throttle, keyed by user id. Edge Function instances
-// are not guaranteed to be warm/shared between requests, so this is a
-// best-effort backstop (not a hard guarantee) -- its purpose is to absorb
-// the common case of a single editor re-triggering checks too fast, not to
-// replace proper infrastructure-level rate limiting.
-const lastRequestAt = new Map<string, number>()
+// Audit 10.1 fix (GRAVE): this used to be a plain in-memory Map, keyed by
+// user id, with a comment admitting the real problem -- Edge Function
+// instances aren't guaranteed to be warm or shared between requests, so
+// that Map could reset on every cold start and different instances never
+// saw each other's requests at all. It was a per-instance hint, not an
+// actual limit. The throttle now lives in a small shared Postgres table
+// (grammar_check_throttle, see supabase/migrations/0003_grammar_throttle.sql)
+// so the limit holds no matter which instance handles a given request.
 const MIN_INTERVAL_MS = 800
 
 export default {
   fetch: withSupabase({ auth: 'user' }, async (req, ctx) => {
     if (req.method !== 'POST') {
       return Response.json({ error: 'Metodo no permitido.' }, { status: 405 })
+    }
+
+    const userId = ctx.user?.id
+    if (!userId) {
+      return Response.json({ error: 'No autenticado.' }, { status: 401 })
     }
 
     let payload: any
@@ -58,13 +65,24 @@ export default {
       )
     }
 
-    const userId = ctx.user?.id ?? 'anon'
-    const now = Date.now()
-    const last = lastRequestAt.get(userId) ?? 0
-    if (now - last < MIN_INTERVAL_MS) {
+    // Audit 10.1: throttle check against the shared table instead of the
+    // old per-instance Map. ctx.supabase is already scoped to this user's
+    // own auth context (see withSupabase above), and RLS on
+    // grammar_check_throttle only lets a user read/write their own row, so
+    // this can't be used to probe or interfere with another user's timing.
+    const { data: throttleRow } = await ctx.supabase
+      .from('grammar_check_throttle')
+      .select('last_request_at')
+      .eq('user', userId)
+      .maybeSingle()
+
+    const lastRequestAt = throttleRow?.last_request_at ? new Date(throttleRow.last_request_at).getTime() : 0
+    if (Date.now() - lastRequestAt < MIN_INTERVAL_MS) {
       return Response.json({ error: 'Demasiadas revisiones seguidas. Intenta de nuevo en un momento.' }, { status: 429 })
     }
-    lastRequestAt.set(userId, now)
+    await ctx.supabase
+      .from('grammar_check_throttle')
+      .upsert({ user: userId, last_request_at: new Date().toISOString() })
 
     try {
       const body = new URLSearchParams({
