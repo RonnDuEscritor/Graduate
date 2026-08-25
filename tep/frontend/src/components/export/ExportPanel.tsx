@@ -65,7 +65,7 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
     })
 
     let citedRefs = references.filter(r => citedIds.has(r.id))
-    if (norma === 'vancouver') citedRefs = citedRefs.sort((a,b) => (vcOrder.get(a.id)??0) - (vcOrder.get(b.id)??0))
+    if (NORMAS[norma].citationFormat === 'numbered') citedRefs = citedRefs.sort((a,b) => (vcOrder.get(a.id)??0) - (vcOrder.get(b.id)??0))
     else citedRefs = citedRefs.sort((a,b) => a.author.localeCompare(b.author, 'es'))
 
     const secMap = new Map<string, PBSection>()
@@ -121,7 +121,7 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
     if (citedRefs.length > 0) {
       bibHTML = '<div style="page-break-before:always"><h2>Referencias bibliográficas</h2>'
       citedRefs.forEach((r, i) => {
-        const num = norma === 'vancouver' ? (vcOrder.get(r.id) ?? i+1) : i+1
+        const num = NORMAS[norma].citationFormat === 'numbered' ? (vcOrder.get(r.id) ?? i+1) : i+1
         bibHTML += `<p style="padding-left:24pt;text-indent:-24pt;margin-bottom:8pt">${formatRef(r, norma, num)}</p>`
       })
       bibHTML += '</div>'
@@ -199,7 +199,7 @@ ${bodyHTML}${bibHTML}
       if (!vcOrder.has(c.reference)) vcOrder.set(c.reference, vcNum++)
     })
     let citedRefs = references.filter(r => citedIds.has(r.id))
-    if (norma === 'vancouver') citedRefs = citedRefs.sort((a,b) => (vcOrder.get(a.id)??0) - (vcOrder.get(b.id)??0))
+    if (NORMAS[norma].citationFormat === 'numbered') citedRefs = citedRefs.sort((a,b) => (vcOrder.get(a.id)??0) - (vcOrder.get(b.id)??0))
     else citedRefs = citedRefs.sort((a,b) => a.author.localeCompare(b.author, 'es'))
 
     const secMap = new Map<string, PBSection>()
@@ -219,7 +219,7 @@ ${bodyHTML}${bibHTML}
     })))
 
     const referencesHtml = citedRefs.map((r, i) =>
-      formatRef(r, norma, norma === 'vancouver' ? (vcOrder.get(r.id) ?? i+1) : i+1)
+      formatRef(r, norma, NORMAS[norma].citationFormat === 'numbered' ? (vcOrder.get(r.id) ?? i+1) : i+1)
     )
 
     return {

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import type { Editor } from '@tiptap/core'
 import { useStore } from '@/store'
 import { cn } from '@/lib/utils'
+import { NORMAS } from '@/types'
 
 type RibbonTab = 'inicio' | 'insertar' | 'formato' | 'referencias' | 'revisar'
 
@@ -80,10 +81,12 @@ export default function Toolbar({ grammarCount = 0 }: ToolbarProps) {
   ]
 
   // Norma indicator - ASCII only, no emojis or accented chars
-  const normaLabel = norma === 'apa'
-    ? 'APA 7 | Times NR 12pt | x2.0'
-    : norma === 'vancouver'
-    ? 'Vancouver | Arial 11pt | x1.5'
+  // Audit P0 4.4 fix: this was a two-way ternary (apa / vancouver / else
+  // blank), so every one of the newly wired styles (ieee, chicago, mla,
+  // harvard) showed nothing at all. Built from NORMAS (types/index.ts)
+  // directly so any future style added there shows up here automatically.
+  const normaLabel = norma && NORMAS[norma]
+    ? `${NORMAS[norma].label} | ${NORMAS[norma].font.replace(/'/g, '').split(',')[0]} ${NORMAS[norma].fontSize} | x${NORMAS[norma].lineHeight}`
     : ''
 
   const noEditor = !editor

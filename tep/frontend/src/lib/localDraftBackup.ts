@@ -52,3 +52,25 @@ export function getLocalDraft(sectionId: string): LocalDraft | null {
     return null
   }
 }
+
+// Audit P1 item 13 fix: local drafts can contain unpublished thesis
+// content (a student's own unfinished academic work), and there was no
+// point at which they were ever cleared other than a successful save
+// syncing that exact section. On a shared or public computer, signing out
+// left every draft still sitting in localStorage for the next person who
+// opens the browser -- readable by anyone with access to that profile,
+// indefinitely. Called from signOut() in hooks/useAuth.ts so every local
+// draft is wiped the moment the user actually leaves the account, not just
+// when each one happens to sync successfully.
+export function clearAllLocalDrafts() {
+  try {
+    const toRemove: string[] = []
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i)
+      if (k && k.startsWith(PREFIX)) toRemove.push(k)
+    }
+    toRemove.forEach(k => window.localStorage.removeItem(k))
+  } catch {
+    // Ignore -- best effort, same as every other function in this file.
+  }
+}

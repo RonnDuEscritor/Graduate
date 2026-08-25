@@ -1,6 +1,8 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import type { NormaType, PBReference, TiptapNode } from '@/types'
+import { NORMAS } from '@/types'
+import { supabase } from '@/lib/supabase'
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs))
 
@@ -130,19 +132,85 @@ export function formatRefChicago(rawRef: PBReference): string {
   return s.trim()
 }
 
+// Audit P0 4.4 fix: MLA (9th ed., simplified) and Harvard were entirely
+// missing -- only libre/APA/Vancouver existed, and IEEE/Chicago above were
+// already written but never wired into formatRef() (see below).
+export function formatRefMLA(rawRef: PBReference): string {
+  const r = escapeRefFields(rawRef)
+  const init = r.initial ? ` ${r.initial}` : ''
+  let s = `${r.author}${init}.`
+  if (r.ref_type === 'articulo') {
+    s += ` "${r.title}."`
+    if (r.journal) s += ` <em>${r.journal}</em>,`
+    if (r.volume)  s += ` vol. ${r.volume},`
+    if (r.issue)   s += ` no. ${r.issue},`
+    s += ` ${r.year}`
+    if (r.pages)   s += `, pp. ${r.pages}`
+    s += '.'
+  } else {
+    s += ` <em>${r.title}</em>.`
+    if (r.publisher) s += ` ${r.publisher},`
+    s += ` ${r.year}.`
+  }
+  if (r.url) s += ` ${r.url}.`
+  return s.trim()
+}
+
+export function formatRefHarvard(rawRef: PBReference): string {
+  const r = escapeRefFields(rawRef)
+  const init = r.initial ? ` ${r.initial}.` : ''
+  let s = `${r.author}${init} (${r.year})`
+  if (r.ref_type === 'articulo') {
+    s += ` '${r.title}',`
+    if (r.journal) s += ` <em>${r.journal}</em>,`
+    if (r.volume)  s += ` ${r.volume}`
+    if (r.issue)   s += `(${r.issue})`
+    if (r.pages)   s += `, pp. ${r.pages}`
+  } else {
+    s += ` <em>${r.title}</em>.`
+    if (r.publisher) s += ` ${r.publisher}.`
+  }
+  const doiUrl = r.doi ? `https://doi.org/${r.doi.replace('https://doi.org/','')}` : r.url
+  if (doiUrl) s += ` ${doiUrl}.`
+  return s.trim()
+}
+
+// Audit P0 4.4 fix: this used to hard-code `if (norma === 'vancouver')
+// ... else APA`, silently formatting every other style as APA. Now
+// dispatches by the actual style, and falls back to the norma's own
+// citationFormat (author-year vs numbered) for any future style added to
+// NORMAS in types/index.ts that doesn't have its own case yet, rather than
+// defaulting straight to APA regardless of what that style actually is.
 export function formatRef(r: PBReference, norma: NormaType, num = 1): string {
-  if (norma === 'vancouver') return formatRefVancouver(r, num)
-  return formatRefAPA(r)
+  switch (norma) {
+    case 'vancouver': return formatRefVancouver(r, num)
+    case 'ieee':      return formatRefIEEE(r, num)
+    case 'chicago':   return formatRefChicago(r)
+    case 'mla':       return formatRefMLA(r)
+    case 'harvard':   return formatRefHarvard(r)
+    case 'apa':
+    case 'libre':
+    default:          return formatRefAPA(r)
+  }
 }
 
 // ── CITE TEXT ────────────────────────────────────────────────
+// Audit P0 4.4 fix: previously hard-coded `if (norma === 'vancouver')`,
+// so every other style -- including the newly wired IEEE, Chicago, MLA and
+// Harvard -- fell through to the APA-shaped (Author, Year) branch. Now
+// dispatches on NORMAS[norma].citationFormat (numbered vs author-year),
+// the same abstraction formatRef() uses, with MLA special-cased since its
+// convention is author-page rather than author-year.
 export function buildCiteText(
   ref: PBReference, norma: NormaType, num: number, page?: string
 ): string {
-  if (norma === 'vancouver') {
+  if (NORMAS[norma].citationFormat === 'numbered') {
     return page ? `[${num}, p. ${page}]` : `[${num}]`
   }
   const last = ref.author.split(',')[0].trim().split(' ').pop() ?? ref.author
+  if (norma === 'mla') {
+    return page ? `(${last} ${page})` : `(${last})`
+  }
   return page ? `(${last}, ${ref.year}, p. ${page})` : `(${last}, ${ref.year})`
 }
 
@@ -171,10 +239,27 @@ export function extractCitationRefIds(doc: TiptapNode | null | undefined): strin
 }
 
 // ── DOI LOOKUP via CrossRef ──────────────────────────────────
+// Audit P1 item 9 fix: this used to call api.crossref.org directly from
+// the browser. It now goes through the 'lookup-doi' Supabase Edge
+// Function, which requires an authenticated user and centralizes the
+// actual CrossRef call server-side (see
+// supabase/functions/lookup-doi/index.ts) -- same reasoning already
+// applied to LanguageTool via check-grammar. Parsing the CrossRef response
+// shape stays here unchanged; only where the HTTP call goes has changed.
 export async function lookupDOI(doi: string): Promise<Partial<PBReference> | null> {
   try {
-    const clean = doi.replace(/^https?:\/\/doi\.org\//,'')
-    const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(clean)}`)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/lookup-doi`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ doi }),
+    })
     if (!res.ok) return null
     const { message: w } = await res.json()
     return {
@@ -185,7 +270,7 @@ export async function lookupDOI(doi: string): Promise<Partial<PBReference> | nul
       journal:   w['container-title']?.[0],
       publisher: w.publisher,
       pages:     w.page,
-      doi:       clean,
+      doi:       doi.replace(/^https?:\/\/doi\.org\//,''),
       ref_type:  'articulo',
     }
   } catch { return null }
@@ -262,6 +347,17 @@ const WORDS_PER_PAGE: Record<NormaType, number> = {
   vancouver: 420,
   // Inter 14px, interlineado 1.85 (Libre)
   libre:     330,
+  // Audit P0 4.4: added when IEEE/Chicago/MLA/Harvard were wired in --
+  // density follows directly from each style's font/line-height in NORMAS
+  // (types/index.ts), same reasoning as the three original entries above.
+  // Times New Roman 10pt, interlineado 1.5 (IEEE)
+  ieee:      380,
+  // Times New Roman 12pt, interlineado 2.0 (Chicago)
+  chicago:   270,
+  // Times New Roman 12pt, interlineado 2.0 (MLA)
+  mla:       270,
+  // Times New Roman 12pt, interlineado 1.5 (Harvard)
+  harvard:   330,
 }
 
 /** Estimated number of physical pages a section's content would occupy. Always at least 1. */

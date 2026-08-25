@@ -9,13 +9,22 @@ import type { AppState, PBProject, PBSection, PBReference, PBCitation, RevisionI
 const pendingTimers  = new Map<string, ReturnType<typeof setTimeout>>()
 const pendingPayloads = new Map<string, { content: TiptapDoc, wordCount: number }>()
 
-function flushSection(sectionId: string, set: (partial: Partial<AppState>) => void) {
+function flushSection(sectionId: string, set: (partial: Partial<AppState>) => void): Promise<void> {
   const payload = pendingPayloads.get(sectionId)
   pendingTimers.delete(sectionId)
   pendingPayloads.delete(sectionId)
-  if (!payload) return
+  if (!payload) return Promise.resolve()
   set({ isSaving: true })
-  supabase.from('sections')
+  // Audit P1 item 13 follow-up: returns the promise chain (previously
+  // fire-and-forget) so callers -- specifically signOut() in
+  // hooks/useAuth.ts -- can await the write actually finishing before
+  // clearing local drafts, instead of racing a logout against an
+  // in-flight save.
+  // Audit P1 item 13 follow-up: wrapped in Promise.resolve() because
+  // Supabase's query builder `.then()` returns a PromiseLike, not a full
+  // Promise (missing .catch/.finally) -- callers awaiting this need an
+  // actual Promise<void>.
+  return Promise.resolve(supabase.from('sections')
     .update({ content: payload.content, word_count: payload.wordCount })
     .eq('id', sectionId)
     .then(({ error }) => {
@@ -30,7 +39,7 @@ function flushSection(sectionId: string, set: (partial: Partial<AppState>) => vo
         clearLocalDraft(sectionId) // server now has this content -- the local backstop is no longer needed
         set({ isSaving: false, lastSaved: new Date() })
       }
-    })
+    }))
 }
 
 interface Actions {
@@ -47,7 +56,7 @@ interface Actions {
 
   // Section save -- debounced per-section, goes to Supabase
   saveSectionContent: (sectionId: string, content: TiptapDoc, wordCount: number) => void
-  flushPendingSaves:  () => void
+  flushPendingSaves:  () => Promise<void>
   syncSectionCitations: (sectionId: string, refIdsInOrder: string[]) => void
 
   // References
@@ -118,11 +127,16 @@ export const useStore = create<AppState & Actions>((set, get) => ({
   // write. Wired up to visibilitychange/pagehide/beforeunload in App.tsx so
   // closing the tab or switching away doesn't silently drop the last 1.5s
   // of edits.
+  // Audit P1 item 13 follow-up: now returns a Promise that resolves once
+  // every flush has settled, so signOut() (hooks/useAuth.ts) can await it
+  // before wiping local drafts, instead of firing-and-forgetting.
   flushPendingSaves: () => {
+    const flushes: Promise<void>[] = []
     pendingTimers.forEach((timer, sectionId) => {
       clearTimeout(timer)
-      flushSection(sectionId, set)
+      flushes.push(flushSection(sectionId, set))
     })
+    return Promise.all(flushes).then(() => undefined)
   },
 
   // Audit 2.1 fix (GRAVE): reconciles the `citations` table against what

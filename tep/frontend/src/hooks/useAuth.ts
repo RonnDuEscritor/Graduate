@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useStore } from '@/store'
+import { clearAllLocalDrafts } from '@/lib/localDraftBackup'
 import type { Session } from '@supabase/supabase-js'
 
 export interface AuthUser {
@@ -58,6 +60,22 @@ export async function signUp(email: string, password: string, name: string) {
 }
 
 export async function signOut() {
+  // Audit P1 item 13 fix: local drafts (localDraftBackup.ts) can hold
+  // unpublished thesis content, and previously nothing ever cleared them
+  // except each individual section's own successful sync -- on a shared
+  // or public computer, logging out left every draft still sitting in
+  // localStorage, readable by the next person to use that browser
+  // profile. First give any pending debounced edits a real chance to
+  // reach Supabase (awaited, not fire-and-forget) so a normal, deliberate
+  // logout doesn't needlessly discard content that was about to save
+  // successfully; only after that settles do we wipe whatever drafts
+  // remain (including ones that failed to sync, e.g. no connection --
+  // logging out is an explicit choice to leave the account, and the
+  // privacy risk of leaving that content behind on a shared machine
+  // outweighs keeping a local-only copy the user can no longer reach
+  // anyway once signed out).
+  await useStore.getState().flushPendingSaves()
+  clearAllLocalDrafts()
   await supabase.auth.signOut()
 }
 

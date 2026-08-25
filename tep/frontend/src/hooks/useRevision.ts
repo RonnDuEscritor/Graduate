@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useStore } from '@/store'
 import { extractTextFromTiptap } from '@/lib/utils'
+import { NORMAS } from '@/types'
 import type { RevisionIssue, TiptapNode } from '@/types'
 
 export function useRevision() {
@@ -65,11 +66,23 @@ export function useRevision() {
             const idx = siblings.indexOf(node)
             const next = siblings[idx + 1]
             const nextText = next ? extractTextFromTiptap(next) : ''
+            // Audit P1 items 4 and 5 fix: this used to be level:'error'
+            // and phrased as a flat statement of fact ("no tiene nota de
+            // fuente"), but the check itself is a heuristic -- it only
+            // looks for the word "nota" in the very next paragraph after
+            // the table, so a source note phrased differently, placed as
+            // a table caption, or a few paragraphs down would trigger a
+            // false positive; and a paragraph that happens to contain
+            // "nota" for an unrelated reason would produce a false
+            // negative. A heuristic like this should never be presented as
+            // a definitive academic error, only as something worth double
+            // checking -- hence 'warning', not 'error', and message
+            // wording that says so explicitly.
             if (!nextText.toLowerCase().includes('nota')) {
               issues.push({
                 id: id(), sectionId: sec.id, sectionName: sec.name,
-                level: 'error', code: 'TABLE_NO_SOURCE',
-                message: `Tabla ${tableCount} en "${sec.name}" no tiene nota de fuente (Nota. ...)`,
+                level: 'warning', code: 'TABLE_NO_SOURCE',
+                message: `Revisa la Tabla ${tableCount} en "${sec.name}": no se detecto una nota de fuente (Nota. ...) justo despues. Puede ser un falso positivo si la nota esta en otro lugar o redactada de otra forma.`,
               })
             }
           }
@@ -120,9 +133,17 @@ export function useRevision() {
     })
 
     // ── Duplicate references ───────────────────────────────
+    // Audit P1 item 7 fix: the key used to be just author+year, so two
+    // genuinely different sources by the same author in the same year
+    // (a common, normal thing -- e.g. two 2023 papers by the same
+    // researcher) were flagged as duplicates. Folding a normalized title
+    // into the key makes it require the same author, year AND title
+    // before warning, which is what "duplicate reference" should actually
+    // mean. Still a heuristic (a retyped title with different punctuation
+    // won't match), so this stays a 'warning', never a hard error.
     const seen = new Map<string, string>()
     references.forEach(ref => {
-      const k = `${ref.author.toLowerCase()}${ref.year}`
+      const k = `${ref.author.toLowerCase()}${ref.year}${ref.title.toLowerCase().trim().replace(/\s+/g, ' ')}`
       if (seen.has(k)) {
         issues.push({
           id: id(), level: 'warning', code: 'DUPLICATE_REF',
@@ -132,11 +153,13 @@ export function useRevision() {
       seen.set(k, ref.id)
     })
 
-    // ── Vancouver specific ─────────────────────────────────
-    if (norma === 'vancouver') {
+    // ── Numbered-citation styles (Vancouver, IEEE) ─────────
+    // Audit P0 4.4: generalized from a Vancouver-only check now that IEEE
+    // is also a numbered style (see NORMAS[norma].citationFormat).
+    if (NORMAS[norma].citationFormat === 'numbered') {
       issues.push({
         id: id(), level: 'info', code: 'VANCOUVER_REMINDER',
-        message: 'Vancouver activo: las citas [N] se numeran por orden de primera aparición en el documento.',
+        message: `${NORMAS[norma].label} activo: las citas [N] se numeran por orden de primera aparicion en el documento.`,
       })
     }
 

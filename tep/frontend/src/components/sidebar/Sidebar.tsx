@@ -113,19 +113,21 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
 
         <div>
           <p className="text-white/35 text-xs mb-1 uppercase tracking-wider">Norma</p>
-          <div className="flex gap-1">
-            {(["libre","apa","vancouver"] as NormaType[]).map(n => (
-              <button key={n} onClick={() => setNorma(n)}
-                className={cn(
-                  "flex-1 text-xs py-1 rounded-md border transition-all",
-                  norma === n
-                    ? "bg-gold text-brand-950 border-gold font-medium"
-                    : "bg-white/5 text-white/60 border-white/10 hover:border-gold/60 hover:text-white"
-                )}>
-                {NORMAS[n].label}
-              </button>
+          {/* Audit P0 4.4: switched from a row of pill buttons to a select
+              -- with 3 styles the pills fit fine, but now that NORMAS
+              (types/index.ts) has 7 entries, cramming them all into
+              "flex-1" pills would squeeze each one unreadably narrow in
+              this sidebar. A select scales to any number of options
+              without a layout rework. */}
+          <select
+            value={norma}
+            onChange={e => setNorma(e.target.value as NormaType)}
+            className="w-full bg-white/5 text-white/80 text-xs py-1.5 px-2 rounded-md border border-white/10 outline-none focus:border-gold/60"
+          >
+            {(Object.keys(NORMAS) as NormaType[]).map(n => (
+              <option key={n} value={n} className="bg-brand-950">{NORMAS[n].label}</option>
             ))}
-          </div>
+          </select>
         </div>
 
         <div>

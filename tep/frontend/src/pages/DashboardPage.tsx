@@ -179,18 +179,18 @@ export default function DashboardPage() {
               </div>
               <div>
                 <label className="block text-xs text-brand-400 mb-1">Norma de citacion</label>
-                <div className="flex gap-2">
-                  {(['libre','apa','vancouver'] as NormaType[]).map(n => (
-                    <button key={n} onClick={() => setNorma(n)}
-                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${
-                        norma === n
-                          ? 'bg-brand-500 text-white border-brand-500'
-                          : 'bg-brand-800 text-brand-400 border-brand-700 hover:border-brand-500'
-                      }`}>
-                      {NORMAS[n].label}
-                    </button>
+                {/* Audit P0 4.4: same reasoning as Sidebar.tsx -- switched
+                    from pill buttons to a select now that NORMAS has 7
+                    styles instead of 3. */}
+                <select
+                  value={norma}
+                  onChange={e => setNorma(e.target.value as NormaType)}
+                  className="w-full bg-brand-800 border border-brand-600 rounded-lg px-3 py-2 text-sm text-brand-100 outline-none focus:border-brand-400"
+                >
+                  {(Object.keys(NORMAS) as NormaType[]).map(n => (
+                    <option key={n} value={n}>{NORMAS[n].label}</option>
                   ))}
-                </div>
+                </select>
                 <p className="text-brand-600 text-xs mt-1">{NORMAS[norma].desc}</p>
               </div>
             </div>

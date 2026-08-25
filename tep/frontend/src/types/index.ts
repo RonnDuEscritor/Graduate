@@ -1,5 +1,13 @@
 // ── NORMAS ───────────────────────────────────────────────────
-export type NormaType = 'libre' | 'apa' | 'vancouver'
+// Audit P0 4.4 fix: previously only 'libre' | 'apa' | 'vancouver' were
+// wired up, even though formatRefIEEE() and formatRefChicago() already
+// existed in lib/utils.ts as dead code nothing ever called. Expanded to
+// the styles the audit explicitly asked for as a minimum (APA 7, IEEE,
+// Vancouver, Chicago, MLA, Harvard); ISO 690 is intentionally not included
+// yet -- it's less a single fixed style than a family of options (numeric
+// vs author-date, several punctuation variants), and doing it properly
+// deserves its own pass rather than a rushed approximation added here.
+export type NormaType = 'libre' | 'apa' | 'vancouver' | 'ieee' | 'chicago' | 'mla' | 'harvard'
 export type TipoTesis = 0 | 1 | 2
 export type RefType   = 'libro' | 'articulo' | 'tesis' | 'web' | 'capitulo'
 export type IssueLevel = 'error' | 'warning' | 'info'
@@ -28,6 +36,30 @@ export const NORMAS: Record<NormaType, NormaConfig> = {
     lineHeight:'1.5', textAlign:'justify', cssClass:'norma-vancouver',
     desc:'Arial 11pt - interlineado 1.5 - citas numericas [N]',
     citationFormat:'numbered', bibSort:'appearance',
+  },
+  ieee: {
+    label:'IEEE', font:"'Times New Roman',Times,serif", fontSize:'10pt',
+    lineHeight:'1.5', textAlign:'justify', cssClass:'norma-ieee',
+    desc:'Times New Roman 10pt - interlineado 1.5 - citas numericas [N]',
+    citationFormat:'numbered', bibSort:'appearance',
+  },
+  chicago: {
+    label:'Chicago', font:"'Times New Roman',Times,serif", fontSize:'12pt',
+    lineHeight:'2.0', textAlign:'left', cssClass:'norma-chicago',
+    desc:'Times New Roman 12pt - interlineado 2.0 - autor-fecha',
+    citationFormat:'author-year', bibSort:'alpha',
+  },
+  mla: {
+    label:'MLA', font:"'Times New Roman',Times,serif", fontSize:'12pt',
+    lineHeight:'2.0', textAlign:'left', cssClass:'norma-mla',
+    desc:'Times New Roman 12pt - interlineado 2.0 - autor-pagina',
+    citationFormat:'author-year', bibSort:'alpha',
+  },
+  harvard: {
+    label:'Harvard', font:"'Times New Roman',Times,serif", fontSize:'12pt',
+    lineHeight:'1.5', textAlign:'justify', cssClass:'norma-harvard',
+    desc:'Times New Roman 12pt - interlineado 1.5 - autor-fecha',
+    citationFormat:'author-year', bibSort:'alpha',
   },
 }
 
