@@ -6,7 +6,7 @@ by RonnDu Corp.
 - **Frontend**: React 18 + Vite + TypeScript + Tiptap + Tailwind
 - **Backend**: Supabase (Postgres + Auth + Edge Functions) -- plan gratuito, sin tarjeta
 - **Generacion de DOCX**: Supabase Edge Function (Deno) usando la libreria `docx` real via `npm:` specifier
-- **IA**: Anthropic Claude API (streaming)
+- **Revision gramatical**: Supabase Edge Function que actua de proxy autenticado hacia LanguageTool
 - **Deploy**: Vercel (frontend) + Supabase (backend)
 
 ## Estructura del proyecto
@@ -19,10 +19,10 @@ tep/
         │   ├── sidebar/      <- Estructura + navegacion
         │   ├── references/   <- Gestor bibliografico
         │   ├── revision/     <- Panel de revision academica
-        │   ├── ai/           <- Panel IA con streaming
         │   ├── export/       <- PDF + Word
         │   └── ui/           <- Componentes base
-        ├── pages/            <- Login, Dashboard, Editor
+        ├── extensions/       <- Nodos/marcas Tiptap (citas, marcas de gramatica)
+        ├── pages/            <- Login, Dashboard, Editor, Nueva contrasena
         ├── hooks/            <- useAuth, useProject, etc.
         ├── store/            <- Zustand global store
         ├── lib/              <- supabase client, utils, formatters
@@ -30,10 +30,16 @@ tep/
 
 supabase/
 ├── migrations/
-│   └── 0001_init.sql         <- Esquema completo (tablas + RLS + triggers)
+│   ├── 0001_init.sql                    <- Esquema completo (tablas + RLS + triggers)
+│   ├── 0002_input_validation.sql        <- Validacion server-side de create_project_with_sections
+│   ├── 0003_grammar_throttle.sql        <- Tabla compartida para el rate-limit de gramatica
+│   ├── 0004_is_roman_fix.sql            <- is_roman en create_project_with_sections + backfill
+│   └── 0005_grammar_throttle_atomic.sql <- Throttle de gramatica sin condicion de carrera
 └── functions/
-    └── generate-docx/
-        └── index.ts           <- Edge Function autocontenida (1 solo archivo)
+    ├── generate-docx/
+    │   └── index.ts           <- Edge Function autocontenida (1 solo archivo)
+    └── check-grammar/
+        └── index.ts           <- Proxy autenticado hacia LanguageTool
 ```
 
 ## Por que Supabase y no PocketBase/Railway/Render
@@ -59,20 +65,23 @@ npm install -g supabase
 # Enlaza tu proyecto local con el proyecto remoto
 supabase link --project-ref TU_PROJECT_REF
 
-# Aplica el esquema (tablas + RLS + triggers)
+# Aplica el esquema (tablas + RLS + triggers) y las migraciones posteriores, en orden
 supabase db push
 
-# Despliega la funcion de generacion de DOCX
+# Despliega las funciones
 supabase functions deploy generate-docx
+supabase functions deploy check-grammar
 ```
 
-También puedes hacer todo esto sin instalar nada, desde el dashboard web de
+Tambien puedes hacer todo esto sin instalar nada, desde el dashboard web de
 Supabase:
-1. **SQL Editor** -> pega el contenido de `supabase/migrations/0001_init.sql` -> Run.
+1. **SQL Editor** -> pega el contenido de cada archivo en `supabase/migrations/`,
+   en orden (`0001_init.sql`, `0002_input_validation.sql`, etc.) -> Run.
 2. **Edge Functions** -> Deploy a new function -> **Via Editor** -> nombrala
    `generate-docx` -> pega el contenido completo de
    `supabase/functions/generate-docx/index.ts` (es un solo archivo
-   autocontenido, no necesitas archivos adicionales) -> Deploy.
+   autocontenido, no necesitas archivos adicionales) -> Deploy. Repite lo
+   mismo para `check-grammar` con `supabase/functions/check-grammar/index.ts`.
 
 ### 2. Frontend
 ```bash
@@ -89,7 +98,7 @@ npm run dev
 
 ### Backend en Supabase
 Ya esta "desplegado" en cuanto ejecutas `supabase db push` y
-`supabase functions deploy generate-docx` -- no hay un contenedor que
+`supabase functions deploy` para cada funcion -- no hay un contenedor que
 mantener, Supabase aloja tanto la base de datos como las funciones.
 
 ### Frontend en Vercel
@@ -99,7 +108,6 @@ vercel deploy
 # Variables de entorno en Vercel:
 # VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 # VITE_SUPABASE_ANON_KEY=tu-clave-anonima-publica
-# VITE_ANTHROPIC_KEY=sk-ant-...
 ```
 
 ## Tablas (Postgres)
@@ -120,5 +128,4 @@ puede ver y modificar sus propios proyectos y todo lo que cuelga de ellos.
 # frontend/.env
 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=tu-clave-anonima-publica
-VITE_ANTHROPIC_KEY=sk-ant-...            # Anthropic API key para el panel IA
 ```

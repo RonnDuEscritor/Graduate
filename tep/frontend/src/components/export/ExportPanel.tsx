@@ -73,7 +73,13 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
 
     let bodyHTML = ''
 
-    const AUTO_IDX = ['Índice general','Índice de tablas','Índice de figuras','Índice de tablas y figuras','Índice de cuadros comparativos']
+    // Audit ALTA fix: this used to search for 'Indice' WITH an accent
+    // (Indice), but TIPOS_TESIS (types/index.ts) spells every section name
+    // WITHOUT accents on purpose (the whole codebase avoids them so it stays
+    // safe to paste through Notepad -> GitHub), so 'Indice general' never
+    // matched and the auto-generated table of contents was never inserted
+    // for these sections -- they exported as empty headings instead.
+    const AUTO_IDX = ['Indice general','Indice de tablas','Indice de figuras','Indice de tablas y figuras','Indice de cuadros comparativos']
 
     // Audit 2.1 fix (CRITICO): this used to label every section's printed
     // page number as a single incrementing integer ("1 seccion = 1
@@ -198,7 +204,13 @@ ${bodyHTML}${bibHTML}
 
     const secMap = new Map<string, PBSection>()
     sections.forEach(s => secMap.set(s.name, s))
-    const AUTO_IDX = ['Índice general','Índice de tablas','Índice de figuras','Índice de tablas y figuras','Índice de cuadros comparativos']
+    // Audit ALTA fix: this used to search for 'Indice' WITH an accent
+    // (Indice), but TIPOS_TESIS (types/index.ts) spells every section name
+    // WITHOUT accents on purpose (the whole codebase avoids them so it stays
+    // safe to paste through Notepad -> GitHub), so 'Indice general' never
+    // matched and the auto-generated table of contents was never inserted
+    // for these sections -- they exported as empty headings instead.
+    const AUTO_IDX = ['Indice general','Indice de tablas','Indice de figuras','Indice de tablas y figuras','Indice de cuadros comparativos']
 
     const docxSections = t.fases.flatMap(fase => fase.items.map(name => ({
       name,

@@ -65,24 +65,23 @@ export default {
       )
     }
 
-    // Audit 10.1: throttle check against the shared table instead of the
-    // old per-instance Map. ctx.supabase is already scoped to this user's
-    // own auth context (see withSupabase above), and RLS on
-    // grammar_check_throttle only lets a user read/write their own row, so
-    // this can't be used to probe or interfere with another user's timing.
-    const { data: throttleRow } = await ctx.supabase
-      .from('grammar_check_throttle')
-      .select('last_request_at')
-      .eq('user', userId)
-      .maybeSingle()
+    // Audit item 5 fix: the previous SELECT-then-UPSERT here had a race
+    // window where two near-simultaneous requests could both read the same
+    // last_request_at and both pass the check before either write landed.
+    // try_acquire_grammar_throttle() (see
+    // supabase/migrations/0005_grammar_throttle_atomic.sql) does the check
+    // and the write as a single atomic Postgres statement, so there's no
+    // gap left for a second concurrent request to slip through.
+    const { data: acquired, error: throttleError } = await ctx.supabase
+      .rpc('try_acquire_grammar_throttle', { p_min_interval_ms: MIN_INTERVAL_MS })
 
-    const lastRequestAt = throttleRow?.last_request_at ? new Date(throttleRow.last_request_at).getTime() : 0
-    if (Date.now() - lastRequestAt < MIN_INTERVAL_MS) {
+    if (throttleError) {
+      console.error('Throttle check error:', throttleError)
+      return Response.json({ error: 'No se pudo verificar el limite de solicitudes.' }, { status: 500 })
+    }
+    if (!acquired) {
       return Response.json({ error: 'Demasiadas revisiones seguidas. Intenta de nuevo en un momento.' }, { status: 429 })
     }
-    await ctx.supabase
-      .from('grammar_check_throttle')
-      .upsert({ user: userId, last_request_at: new Date().toISOString() })
 
     try {
       const body = new URLSearchParams({

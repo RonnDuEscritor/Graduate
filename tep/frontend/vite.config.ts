@@ -7,9 +7,5 @@ export default defineConfig({
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
   server: {
     port: 5173,
-    proxy: {
-      // Proxy API calls to PocketBase in development
-      '/api': { target: 'http://127.0.0.1:8090', changeOrigin: true },
-    },
   },
 })

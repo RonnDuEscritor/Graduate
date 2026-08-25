@@ -71,11 +71,23 @@ export function useProject() {
     title: string, tipo: TipoTesis, norma: NormaType
   ) => {
     const template = TIPOS_TESIS[tipo]
-    const sectionsPayload: { name: string, fase: string, order_index: number }[] = []
+    const sectionsPayload: { name: string, fase: string, order_index: number, is_roman: boolean }[] = []
     let idx = 0
     for (const fase of template.fases) {
       for (const name of fase.items) {
-        sectionsPayload.push({ name: String(name), fase: String(fase.fase), order_index: idx })
+        // Audit CRITICO #1 fix (MUY ALTA): fase.isRoman was computed here
+        // and then never sent to the RPC, so every section -- including
+        // preliminary ones (portada, dedicatoria, indice...) that should
+        // be numbered i, ii, iii -- was written with is_roman defaulting
+        // to false at the database level. That default silently overrode
+        // whatever the frontend displayed, and anything reading
+        // sections.is_roman directly (academic validation in
+        // useRevision.ts, any future page-numbering or export logic that
+        // trusts the DB instead of TIPOS_TESIS) saw every section as
+        // arabic-numbered.
+        sectionsPayload.push({
+          name: String(name), fase: String(fase.fase), order_index: idx, is_roman: fase.isRoman,
+        })
         idx++
       }
     }

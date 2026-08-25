@@ -12,6 +12,15 @@ import {
 import { withSupabase } from 'npm:@supabase/server@^1'
 import { Buffer } from 'node:buffer'
 
+// Audit item 6 fix (MEDIA-ALTA): none of these existed before -- the
+// function checked auth and project ownership, but nothing bounded the
+// size of the export payload itself (sections, image data URIs, ...) that
+// an authenticated caller could send. A pathological or malicious request
+// could drive excessive memory use, long generation times, or timeouts.
+const MAX_REQUEST_BYTES = 25 * 1024 * 1024 // 25MB raw request body
+const MAX_SECTIONS      = 300              // generous ceiling for a real thesis (usually 10-40)
+const MAX_IMAGE_BYTES   = 8 * 1024 * 1024  // 8MB per decoded image (used in dataUriToImageRun below)
+
 // =================================================================
 // norma (academic style) config
 // =================================================================
@@ -109,6 +118,15 @@ function dataUriToImageRun(src: string | undefined) {
   if (!match) return null
   try {
     const buffer = Buffer.from(match[2], 'base64')
+    // Audit item 6 fix (MEDIA-ALTA): images are embedded as base64 data
+    // URIs directly in the document content, with nothing capping how big
+    // one could be -- a single oversized image could blow up memory usage
+    // or generation time for the whole export. An image this large would
+    // never come from the editor's own upload flow, so skipping it (same
+    // "silently omit" behaviour as an unparseable image, via the
+    // `if (!run) return []` above) keeps the rest of the document
+    // exporting normally instead of failing or timing out the whole request.
+    if (buffer.length > MAX_IMAGE_BYTES) return null
     return new ImageRun({
       data: buffer,
       transformation: { width: 420, height: 280 },
@@ -265,6 +283,25 @@ export const NUMBERING_CONFIG = {
 // =================================================================
 // full document assembly
 // =================================================================
+// Audit ALTA fix -- the frontend's formatRef() functions run every field
+// through escapeHtml() (lib/utils.ts) before building the small HTML
+// snippet htmlRefToRuns() below parses, so this receives text like
+// "Garc\u00eda &amp; L\u00f3pez" rather than the original "Garc\u00eda & L\u00f3pez". That's
+// correct for HTML (the PDF export renders it directly as HTML, so the
+// entity is exactly what a browser needs), but a .docx TextRun's `text` is
+// literal document text, not HTML -- writing the escaped string put the
+// literal characters "&amp;" into the Word document instead of "&". This
+// reverses exactly the five entities escapeHtml() produces, in the same
+// order, before any text reaches a TextRun.
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+}
+
 // Parses the small subset of inline HTML used by the frontend's reference
 // formatters (formatRefAPA/Vancouver/... in lib/utils.ts), which only ever
 // emit plain text and <em>...</em> for italics.
@@ -273,10 +310,10 @@ function htmlRefToRuns(html: string) {
   const re = /<em>(.*?)<\/em>|([^<]+)/g
   let m
   while ((m = re.exec(html || '')) !== null) {
-    if (m[1] !== undefined) runs.push(new TextRun({ text: m[1], italics: true }))
-    else if (m[2]) runs.push(new TextRun({ text: m[2] }))
+    if (m[1] !== undefined) runs.push(new TextRun({ text: decodeHtmlEntities(m[1]), italics: true }))
+    else if (m[2]) runs.push(new TextRun({ text: decodeHtmlEntities(m[2]) }))
   }
-  if (runs.length === 0) runs.push(new TextRun({ text: html || '' }))
+  if (runs.length === 0) runs.push(new TextRun({ text: decodeHtmlEntities(html || '') }))
   return runs
 }
 
@@ -444,6 +481,18 @@ export default {
       return Response.json({ error: 'Metodo no permitido.' }, { status: 405 })
     }
 
+    // Audit item 6 fix: reject an oversized body before even reading it,
+    // using the Content-Length header the client sent -- cheaper than
+    // buffering the whole thing into memory first just to find out it's
+    // too big.
+    const contentLength = Number(req.headers.get('content-length') || 0)
+    if (contentLength > MAX_REQUEST_BYTES) {
+      return Response.json(
+        { error: `El documento a exportar es demasiado grande (limite ${Math.round(MAX_REQUEST_BYTES / 1024 / 1024)}MB).` },
+        { status: 413 },
+      )
+    }
+
     let payload: any
     try {
       payload = await req.json()
@@ -454,6 +503,17 @@ export default {
     const projectId = payload?.project?.id
     if (!projectId) {
       return Response.json({ error: 'Falta el id del proyecto.' }, { status: 400 })
+    }
+
+    // Audit item 6 fix: same reasoning as the Content-Length check above,
+    // applied to the section count specifically (a request could stay
+    // under the raw byte cap while still listing an absurd number of tiny
+    // sections).
+    if (Array.isArray(payload?.sections) && payload.sections.length > MAX_SECTIONS) {
+      return Response.json(
+        { error: `Demasiadas secciones para exportar (limite ${MAX_SECTIONS}).` },
+        { status: 413 },
+      )
     }
 
     try {
