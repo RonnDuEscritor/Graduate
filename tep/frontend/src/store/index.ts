@@ -172,23 +172,35 @@ export const useStore = create<AppState & Actions>((set, get) => ({
     // paragraph got reordered/deleted) -> insert or correct
     // order_of_appearance, which is what drives real reading-order
     // Vancouver numbering (audit item 3).
+    //
+    // Audit 5.6 fix (GRAVE/P1): this used to branch on `existingByRef`,
+    // which comes from client-side state (get().citations) -- if two
+    // saves land close together, both can read that same stale state
+    // before either INSERT's response has come back and updated it, so
+    // both decide "no row yet" and insert two rows for the same
+    // (section, reference). Migration 0008 adds a UNIQUE(section,
+    // reference) constraint precisely so the database rejects that
+    // regardless of what the client believed; .upsert with onConflict
+    // targets that same constraint so the second of two racing calls
+    // becomes a safe no-op UPDATE instead of an error or a duplicate row.
     refIdsInOrder.forEach((refId, position) => {
       const orderOfAppearance = sectionOrderIndex * 10000 + position
       const row = existingByRef.get(refId)
-      if (!row) {
+      if (!row || row.order_of_appearance !== orderOfAppearance) {
         supabase.from('citations')
-          .insert({ project: project.id, section: sectionId, reference: refId, order_of_appearance: orderOfAppearance })
+          .upsert(
+            { project: project.id, section: sectionId, reference: refId, order_of_appearance: orderOfAppearance },
+            { onConflict: 'section,reference' },
+          )
           .select().single()
           .then(({ data, error }) => {
-            if (error) { console.error('Citation insert error:', error); return }
-            set(s => ({ citations: [...s.citations, data] }))
+            if (error) { console.error('Citation sync error:', error); return }
+            set(s => ({
+              citations: s.citations.some(x => x.id === data.id)
+                ? s.citations.map(x => x.id === data.id ? data : x)
+                : [...s.citations, data],
+            }))
           })
-      } else if (row.order_of_appearance !== orderOfAppearance) {
-        supabase.from('citations').update({ order_of_appearance: orderOfAppearance }).eq('id', row.id)
-          .then(({ error }) => { if (error) console.error('Citation reorder error:', error) })
-        set(s => ({
-          citations: s.citations.map(x => x.id === row.id ? { ...x, order_of_appearance: orderOfAppearance } : x),
-        }))
       }
     })
   },

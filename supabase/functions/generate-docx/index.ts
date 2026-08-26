@@ -29,7 +29,18 @@ const MAX_IMAGE_BYTES   = 8 * 1024 * 1024  // 8MB per decoded image (used in dat
 // Kept intentionally separate from the frontend copy -- this file only
 // controls low-level OOXML rendering, never academic/business rules
 // (those stay in the frontend, the single source of truth).
-
+//
+// Audit P0 4.1 fix (CRITICO): this used to define only libre/apa/vancouver,
+// even though the frontend (types/index.ts NORMAS) already exercised seven
+// styles (libre, apa, vancouver, ieee, chicago, mla, harvard) since the
+// P0 4.4 fix in CAMBIOS.md. resolveNorma() silently fell back to
+// NORMAS.libre for any of the other four, so choosing IEEE/Chicago/MLA/
+// Harvard in the UI produced a DOCX that quietly ignored the selected
+// font, size, line spacing and alignment and used Libre's instead -- the
+// interface promised seven styles but the exported Word document only
+// ever honored three. All seven are now defined here, values converted
+// 1:1 from the frontend's NormaConfig (pt -> half-points *2, textAlign
+// 'justify'/'left' -> docx.js AlignmentType names).
 export const NORMAS: Record<string, {
   label: string
   font: string
@@ -58,8 +69,44 @@ export const NORMAS: Record<string, {
     lineMultiplier: 1.5,
     align: 'JUSTIFIED',
   },
+  ieee: {
+    label: 'IEEE',
+    font: 'Times New Roman',
+    fontHalfPt: 20, // 10pt
+    lineMultiplier: 1.5,
+    align: 'JUSTIFIED',
+  },
+  chicago: {
+    label: 'Chicago',
+    font: 'Times New Roman',
+    fontHalfPt: 24, // 12pt
+    lineMultiplier: 2.0,
+    align: 'LEFT',
+  },
+  mla: {
+    label: 'MLA',
+    font: 'Times New Roman',
+    fontHalfPt: 24, // 12pt
+    lineMultiplier: 2.0,
+    align: 'LEFT',
+  },
+  harvard: {
+    label: 'Harvard',
+    font: 'Times New Roman',
+    fontHalfPt: 24, // 12pt
+    lineMultiplier: 1.5,
+    align: 'JUSTIFIED',
+  },
 }
 
+// Audit note: resolveNorma() still falls back to NORMAS.libre if it ever
+// receives a norma value NOT in this map. That fallback is now purely
+// defensive (e.g. a future frontend value shipped before this file is
+// updated to match) rather than the silent default path every non-core
+// style hit before this fix -- projects.norma also has a CHECK constraint
+// (see supabase/migrations/0007_norma_expansion.sql) restricting it to
+// exactly these seven values, so in practice this function's map should
+// always have an exact match.
 export function resolveNorma(norma: string) {
   return NORMAS[norma] || NORMAS.libre
 }

@@ -34,12 +34,17 @@ supabase/
 │   ├── 0002_input_validation.sql        <- Validacion server-side de create_project_with_sections
 │   ├── 0003_grammar_throttle.sql        <- Tabla compartida para el rate-limit de gramatica
 │   ├── 0004_is_roman_fix.sql            <- is_roman en create_project_with_sections + backfill
-│   └── 0005_grammar_throttle_atomic.sql <- Throttle de gramatica sin condicion de carrera
+│   ├── 0005_grammar_throttle_atomic.sql <- Throttle de gramatica sin condicion de carrera
+│   ├── 0006_citations_integrity.sql     <- FKs compuestas: section/reference deben ser del mismo project
+│   ├── 0007_norma_expansion.sql         <- Amplia projects.norma a los 7 estilos (antes solo 3)
+│   └── 0008_audit_followup.sql          <- Backfill is_roman por tipo de tesis + UNIQUE(section, reference) en citations
 └── functions/
     ├── generate-docx/
     │   └── index.ts           <- Edge Function autocontenida (1 solo archivo)
-    └── check-grammar/
-        └── index.ts           <- Proxy autenticado hacia LanguageTool
+    ├── check-grammar/
+    │   └── index.ts           <- Proxy autenticado hacia LanguageTool
+    └── lookup-doi/
+        └── index.ts           <- Proxy autenticado hacia CrossRef (busqueda de referencias por DOI)
 ```
 
 ## Por que Supabase y no PocketBase/Railway/Render
@@ -81,7 +86,8 @@ Supabase:
    `generate-docx` -> pega el contenido completo de
    `supabase/functions/generate-docx/index.ts` (es un solo archivo
    autocontenido, no necesitas archivos adicionales) -> Deploy. Repite lo
-   mismo para `check-grammar` con `supabase/functions/check-grammar/index.ts`.
+   mismo para `check-grammar` (`supabase/functions/check-grammar/index.ts`)
+   y `lookup-doi` (`supabase/functions/lookup-doi/index.ts`).
 
 ### 2. Frontend
 ```bash

@@ -15,11 +15,24 @@
   position: relative; color: #000;
   padding: 28mm 25.4mm 28mm 25.4mm;
 }
+/* Audit P0 4.2 fix (GRAVE/P0-P1): NORMAS (types/index.ts) declares
+   cssClass 'norma-mla' and 'norma-harvard' for two of the seven styles,
+   but no rule existed for either here, so selecting MLA or Harvard in the
+   editor silently kept whatever font/size/line-height the previous norma
+   had applied -- the UI said "MLA" while the page kept rendering as
+   something else. Also fixed: norma-ieee's line-height was 1.15 here vs
+   the 1.5 declared in NORMAS.ieee.lineHeight -- same class, two different
+   numbers depending on which file you read, so the editor and the
+   logical "this is what IEEE means" config disagreed on IEEE itself.
+   Every value below is now a literal match of the corresponding
+   NormaConfig entry in types/index.ts. */
 .norma-apa      { font-family:'Times New Roman',Times,serif; font-size:12pt; line-height:2.0; }
 .norma-vancouver{ font-family:'Arial',sans-serif; font-size:11pt; line-height:1.5; text-align:justify; }
 .norma-libre    { font-family:'Inter',sans-serif; font-size:14px; line-height:1.85; }
-.norma-ieee     { font-family:'Times New Roman',Times,serif; font-size:10pt; line-height:1.15; text-align:justify; }
+.norma-ieee     { font-family:'Times New Roman',Times,serif; font-size:10pt; line-height:1.5; text-align:justify; }
 .norma-chicago  { font-family:'Times New Roman',Times,serif; font-size:12pt; line-height:2.0; }
+.norma-mla      { font-family:'Times New Roman',Times,serif; font-size:12pt; line-height:2.0; }
+.norma-harvard  { font-family:'Times New Roman',Times,serif; font-size:12pt; line-height:1.5; text-align:justify; }
 
 .page-header {
   position:absolute; top:12mm; left:25.4mm; right:25.4mm;
