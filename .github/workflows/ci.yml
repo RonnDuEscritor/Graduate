@@ -1,0 +1,39 @@
+name: CI - typecheck and build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tep/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: tep/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Dummy values -- this job only checks that the code compiles and
+      # builds, it never talks to a real Supabase project.
+      - name: Typecheck
+        run: npx tsc --noEmit -p tsconfig.json
+        env:
+          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-placeholder-key
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-placeholder-key
