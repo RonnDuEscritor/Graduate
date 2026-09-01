@@ -387,7 +387,51 @@ function buildStyles(cfg: any) {
         paragraph: { spacing: { before: 240, after: 120 } },
       },
     },
+    // Audit P1 5.3 fix (files2 27/08/2026, GRAVE): preliminary section
+    // titles (Aprobacion del jurado, Dedicatoria y agradecimientos,
+    // Resumen / Abstract, Palabras clave / Keywords...) used to use
+    // `heading: HeadingLevel.HEADING_1` just like real chapter titles.
+    // tocSection()'s TableOfContents field has headingStyleRange:'1-3',
+    // so those preliminary titles were being picked up and listed INSIDE
+    // "Indice general" right alongside the actual thesis chapters --
+    // academically wrong, an index should be governed by the norma/
+    // institution's structure, not simply "every Heading 1 in the file".
+    // PreliminaryTitle looks IDENTICAL to Heading 1 (same font/size/
+    // color/spacing) but Word's TOC field only walks the built-in
+    // heading styles, so text using a custom style name is invisible to
+    // it -- the preliminary title still displays exactly like a heading,
+    // it just doesn't get listed inside the general index anymore.
+    paragraphStyles: [
+      {
+        id: 'PreliminaryTitle',
+        name: 'Preliminary Title',
+        basedOn: 'Normal',
+        next: 'Normal',
+        quickFormat: true,
+        run: { font: 'Georgia', size: 36, bold: true, color: '20040D' },
+        paragraph: { spacing: { before: 360, after: 200 }, alignment: AlignmentType.LEFT },
+      },
+    ],
   }
+}
+
+// Audit P0 4.1 fix (files2 27/08/2026, CRITICO -- doble portada): mirrors
+// hasRealTiptapContent() in frontend/src/lib/utils.ts. Deliberately a tiny,
+// self-contained predicate (not a config table like NORMAS) so keeping two
+// copies carries little of the drift risk that caused earlier audit
+// findings -- there's no field list to fall out of sync, just "does this
+// document have any real text/image/table".
+function hasRealContent(doc: any): boolean {
+  if (!doc || !Array.isArray(doc.content)) return false
+  let found = false
+  const walk = (n: any) => {
+    if (found) return
+    if (n.type === 'text' && (n.text ?? '').trim().length > 0) { found = true; return }
+    if (n.type === 'image' || n.type === 'table') { found = true; return }
+    ;(n.content || []).forEach(walk)
+  }
+  doc.content.forEach(walk)
+  return found
 }
 
 function coverSection(project: any, normaCfg: any) {
@@ -408,6 +452,27 @@ function coverSection(project: any, normaCfg: any) {
       new Paragraph({ spacing: { before: 800 }, alignment: AlignmentType.CENTER,
         children: [new TextRun({ text: `Graduate Pro \u00b7 RonnDu Corp. \u00b7 ${project.year || new Date().getFullYear()}`, size: 18, color: 'AAAAAA' })] }),
     ],
+  }
+}
+
+// Audit P0 4.1 fix (files2 27/08/2026, CRITICO -- doble portada): the
+// exporter used to ALWAYS use coverSection() (generated from project
+// metadata) AND ALSO render the user-editable 'Portada oficial' /
+// 'Portada, aprobacion, dedicatoria' section as an ordinary roman
+// preliminary page -- two cover pages. Per the audit's recommended
+// Option A, when that section has real content (see hasRealContent
+// above), IT becomes the actual cover -- same invisible-page-number
+// section properties as coverSection(), just filled with the user's real
+// content instead of a fixed template. See buildDocx() for the fallback
+// (still coverSection()) when it's empty, and for how this section is
+// excluded from the normal preliminary-pages loop either way.
+function coverSectionFromContent(content: any, normaCfg: any) {
+  return {
+    properties: {
+      type: SectionType.NEXT_PAGE,
+      page: { pageNumbers: { formatType: NumberFormat.DECIMAL } },
+    },
+    children: tiptapToDocxElements(content, { align: normaCfg.align.toLowerCase() }),
   }
 }
 
@@ -458,16 +523,96 @@ function sectionHeader(project: any) {
 // Builds the full docx.js Document. `payload` shape:
 // {
 //   project: { title, author, institution, year, norma },
-//   sections: [ { name, isAutoIndex, content: TiptapDoc|null } ],
+//   sections: [ { name, isAutoIndex, isRoman, isPortada,
+//                 captionIndex: {tableLabel, items:[{kind,number,pageLabel}]} | null,
+//                 content: TiptapDoc|null } ],
 //   referencesHtml: [ string ]   // already formatted via the frontend's formatRef()
 // }
+//
+// Audit P0 4.1 fix (CRITICO, sexto pase): previously every section in
+// payload.sections -- preliminary AND body alike -- was pushed into the
+// single arabic-numbered bodySection, with only the auto-index items
+// (Indice general/tablas/figuras) skipped (a real Word TOC field already
+// covers 'Indice general'). That meant preliminary sections that academic
+// norms require to be roman-numbered were rendered as ordinary
+// arabic-numbered pages mixed into the thesis body. Fixed by splitting
+// into two real Word Sections using isRoman.
+//
+// Audit P0 4.1 fix (files2 27/08/2026, CRITICO -- doble portada): fixing
+// the above surfaced a second bug -- the exporter ALSO always generated
+// its own cover page from project metadata (coverSection below), so once
+// 'Portada oficial' correctly became a roman preliminary page, the
+// document had two cover pages: the automatic one and the user-editable
+// one. Per the audit's Option A, whichever section has isPortada:true
+// becomes the actual cover when it has real content (hasRealContent
+// above); the metadata cover is only a fallback for an empty project, and
+// either way this section never ALSO appears in the ordinary preliminary
+// pages loop below.
+//
+// Audit P0 4.2 fix (files2 27/08/2026, CRITICO -- indices especificos):
+// 'Indice de tablas'/'Indice de figuras'/'Indice de tablas y figuras'/
+// 'Indice de cuadros comparativos' used to be silently dropped (isAutoIndex
+// caused them to be skipped entirely, with no field connecting to real
+// tables/figures -- there's no captions/numbering subsystem in the editor
+// yet, see CAMBIOS.md pendientes). Each of those sections now carries a
+// pre-computed captionIndex (built once in ExportPanel.tsx, shared with
+// the PDF export so the two can't disagree) listing the REAL tables/
+// images found in the document, in order, with the estimated page label
+// of the section they're in -- rendered as a simple list instead of
+// either the wrong general index or nothing at all.
 export function buildDocx(payload: any) {
   const project = payload.project || {}
   const normaCfg = resolveNorma(project.norma)
 
+  const allSections: any[] = payload.sections || []
+  // isRoman/isPortada/captionIndex may be absent on a payload from a
+  // not-yet-updated frontend build -- treated the same as
+  // false/false/null (old behavior) rather than throwing, so this stays
+  // backwards compatible instead of breaking export outright.
+  const portadaSec = allSections.find(sec => sec.isPortada)
+  const coverSec = (portadaSec && hasRealContent(portadaSec.content))
+    ? coverSectionFromContent(portadaSec.content, normaCfg)
+    : coverSection(project, normaCfg)
+
+  // 'Indice general' is isAutoIndex with captionIndex:null (it uses the
+  // real TableOfContents field in tocSection(), not a captioned list) --
+  // that's the ONE isAutoIndex section still excluded from preliminary
+  // rendering entirely. Every other roman section (including the
+  // tablas/figuras/cuadros indices, which now DO render via captionIndex)
+  // is included, except the portada (handled above as the cover).
+  const preliminarySections = allSections.filter(sec =>
+    sec.isRoman && !sec.isPortada && !(sec.isAutoIndex && !sec.captionIndex))
+  const bodySections = allSections.filter(sec => !sec.isRoman)
+
+  const renderCaptionIndex = (spec: { tableLabel: string, items: { kind: string, number: number, pageLabel: string }[] }) => {
+    if (!spec.items || spec.items.length === 0) {
+      return [new Paragraph({ children: [new TextRun({ text: 'No se encontraron elementos en el documento.', italics: true, color: '999999' })] })]
+    }
+    return spec.items.map(it => new Paragraph({
+      spacing: { after: 80 },
+      children: [
+        new TextRun({ text: `${it.kind === 'table' ? spec.tableLabel : 'Figura'} ${it.number}` }),
+        new TextRun({ text: `   \u2014   ${it.pageLabel || ''}`, color: '7D1A31', bold: true }),
+      ],
+    }))
+  }
+
+  const preliminaryChildren: any[] = []
+  preliminarySections.forEach(sec => {
+    // Audit P1 5.3 fix: 'PreliminaryTitle' (see buildStyles above) instead
+    // of `heading: HeadingLevel.HEADING_1` -- looks identical, but keeps
+    // this title out of the general index's heading-based TOC field.
+    preliminaryChildren.push(new Paragraph({
+      style: 'PreliminaryTitle',
+      pageBreakBefore: true,
+      children: [new TextRun({ text: sec.name || '' })],
+    }))
+    preliminaryChildren.push(...(sec.captionIndex ? renderCaptionIndex(sec.captionIndex) : tiptapToDocxElements(sec.content, { align: normaCfg.align.toLowerCase() })))
+  })
+
   const bodyChildren: any[] = []
-  ;(payload.sections || []).forEach((sec: any) => {
-    if (sec.isAutoIndex) return // covered by the real TOC field section, not duplicated here
+  bodySections.forEach((sec: any) => {
+    if (sec.isAutoIndex) return // defensive: auto-index items are always isRoman, so this should never fire
     bodyChildren.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: sec.name || '' })] }))
     bodyChildren.push(...tiptapToDocxElements(sec.content, { align: normaCfg.align.toLowerCase() }))
   })
@@ -483,6 +628,13 @@ export function buildDocx(payload: any) {
     })
   }
 
+  // Same physical Word Section as tocSection() (same roman page-number
+  // scheme, no extra section break needed) -- the real TOC field comes
+  // first, then each preliminary section's actual content, each starting
+  // on its own page.
+  const preliminarySectionDoc = tocSection()
+  preliminarySectionDoc.children.push(...preliminaryChildren)
+
   const bodySection = {
     properties: { type: SectionType.NEXT_PAGE, page: { pageNumbers: { formatType: NumberFormat.DECIMAL, start: 1 } } },
     headers: { default: sectionHeader(project) },
@@ -496,8 +648,8 @@ export function buildDocx(payload: any) {
     numbering: NUMBERING_CONFIG,
     styles: buildStyles(normaCfg),
     sections: [
-      coverSection(project, normaCfg),
-      tocSection(),
+      coverSec,
+      preliminarySectionDoc,
       bodySection,
     ],
   })

@@ -225,6 +225,111 @@ Build verificado de nuevo: npm ci + tsc --noEmit + npm run build, limpio.
 - Deteccion de conflictos entre dispositivos (misma seccion abierta en dos
   lugares a la vez).
 
+## Quinto pase -- Auditoria Exhaustiva (9.0/10) -- P0 y P1
+
+### P0
+
+20. [P0 4.2, integridad relacional] citations no garantizaba que
+    section/reference pertenecieran al mismo project que la fila de
+    citations -- las FK individuales eran validas cada una por separado,
+    pero nada impedia mezclar IDs de dos proyectos distintos del mismo
+    usuario. supabase/migrations/0006_citations_integrity.sql agrega
+    constraints unique en sections(id, project) y bibliography(id,
+    project), y luego FKs COMPUESTAS en citations(section, project) ->
+    sections(id, project) y citations(reference, project) ->
+    bibliography(id, project). Incluye backfill que elimina (si existieran)
+    filas previas inconsistentes antes de poder agregar las constraints.
+
+21. [P0 4.4, cobertura bibliografica] Solo libre/APA/Vancouver estaban
+    conectados -- IEEE y Chicago ya existian como funciones muertas en
+    lib/utils.ts (formatRefIEEE/formatRefChicago) sin que nada las llamara.
+    - types/index.ts: NormaType ahora incluye tambien ieee, chicago, mla,
+      harvard (7 estilos en total). ISO 690 queda deliberadamente fuera de
+      este pase (es una familia de variantes, no un estilo fijo -- merece
+      su propia sesion).
+    - lib/utils.ts: formatRef() e IEEE/Chicago ahora se usan de verdad;
+      se agregaron formatRefMLA y formatRefHarvard. buildCiteText() y el
+      resto del codigo que comparaba directo contra 'vancouver'
+      (ExportPanel.tsx, useRevision.ts) ahora usan
+      NORMAS[norma].citationFormat ('numbered' vs 'author-year'), asi que
+      IEEE tambien numera correctamente como Vancouver.
+    - Sidebar.tsx y DashboardPage.tsx: el selector de norma paso de pill
+      buttons (no escalaban a 7 opciones) a un <select>.
+    - Toolbar.tsx: el indicador de norma en la barra de herramientas
+      tambien mostraba vacio para cualquier estilo que no fuera apa o
+      vancouver; ahora se arma desde NORMAS directamente.
+    - supabase/migrations/0007_norma_expansion.sql: redefine
+      create_project_with_sections() para aceptar los 7 valores nuevos, y
+      agrega un CHECK constraint en projects.norma que antes no existia --
+      cambiar la norma de un proyecto YA CREADO (store/index.ts setNorma)
+      escribe directo con un UPDATE que nunca pasaba por la RPC ni por
+      ninguna validacion.
+
+### P1
+
+22. [P1 item 7] Deteccion de referencias duplicadas usaba autor+año como
+    unica clave -- dos articulos distintos del mismo autor en el mismo año
+    (algo normal) se marcaban como duplicados. La clave ahora incluye el
+    titulo normalizado.
+
+23. [P1 items 4 y 5] TABLE_NO_SOURCE (tabla sin nota de fuente) estaba en
+    level:'error' pese a ser una heuristica de texto (busca la palabra
+    "nota" en el paragrafo siguiente) vulnerable a falsos positivos y
+    negativos. Bajado a 'warning', con mensaje que dice explicitamente que
+    puede ser un falso positivo.
+
+24. [P1 item 9] Lookup de DOI llamaba directo a api.crossref.org desde el
+    navegador. Nueva Edge Function supabase/functions/lookup-doi/index.ts
+    (mismo patron que check-grammar): requiere usuario autenticado, valida
+    longitud del DOI, y hace la llamada a CrossRef del lado servidor.
+    lib/utils.ts (lookupDOI) ahora llama a esa funcion en vez de a
+    CrossRef directo.
+
+25. [P1 item 13] Los borradores locales (localDraftBackup.ts) pueden
+    contener contenido inedito de tesis, y nada los limpiaba salvo el
+    guardado exitoso de esa seccion puntual -- en un equipo compartido,
+    cerrar sesion dejaba todos los borradores en localStorage disponibles
+    para el siguiente usuario del navegador.
+    - store/index.ts: flushSection/flushPendingSaves ahora devuelven una
+      Promise (antes era fire-and-forget) para poder esperar a que
+      terminen.
+    - hooks/useAuth.ts (signOut): espera flushPendingSaves() (le da a los
+      cambios pendientes una oportunidad real de guardarse antes de
+      cerrar sesion), limpia TODOS los borradores locales restantes
+      (clearAllLocalDrafts, incluye los que hayan fallado por falta de
+      conexion -- cerrar sesion es una decision explicita, y el riesgo de
+      privacidad de dejar contenido en un equipo compartido pesa mas que
+      conservar una copia local a la que el usuario ya no puede acceder
+      una vez fuera de sesion), y recien despues llama a
+      supabase.auth.signOut().
+
+Build verificado de nuevo: npm ci + tsc --noEmit + npm run build, limpio.
+
+## Pendiente tras este pase
+
+De la lista P0/P1 de esta auditoria, quedaron sin tocar (requieren
+arquitectura dedicada, no un parche seguro en esta sesion):
+
+- P0 4.1: certificacion de build en CI real (verificado aqui en el
+  sandbox de esta sesion en cada pase, pero la auditoria pide
+  especificamente que el propio pipeline de GitHub Actions falle si
+  tsc/vite no compilan -- repasar que el workflow existente realmente
+  bloquee merges).
+- P0 4.3: matriz de trazabilidad academica (Objetivo -> Pregunta/Hipotesis
+  -> Variable -> Dimension -> Indicador -> Tecnica -> Instrumento ->
+  Resultado -> Conclusion) -- el validador academico actual sigue siendo
+  heuristico por busqueda de texto, no una verificacion estructural real.
+- P1: reduccion de "any" en zonas sensibles (export DOCX, nodos Tiptap).
+- P1: reemplazar alert/confirm por componentes de UI propios (toca muchos
+  archivos, riesgo de regresion visual si se apura).
+- P1: interfaz completa de versiones (restaurar/comparar/eliminar) --
+  saveVersion() existe pero no hay UI para usarlo.
+- P1: retry/backoff y estados de sincronizacion mas explicitos en el
+  autosave (mas alla de local/enviando/guardado).
+- P2 (todos): importacion BibTeX/RIS/CSL, comparacion de versiones,
+  onboarding, telemetria, E2E completo -- evolucion de producto, no
+  correcciones.
+
 ## Sexto pase -- Auditoria "Graduate-main-CORREGIDO" (8.6/10, Auditoria
 Exhaustiva 25/08/2026)
 
@@ -331,107 +436,234 @@ tocar en este pase:
   interfaz completa de versiones (6.7), projectId/ownership explicito en
   check-grammar (7.3).
 
-## Quinto pase -- Auditoria Exhaustiva (9.0/10) -- P0 y P1
+## Septimo pase -- Auditoria "Graduate-main-CORREGIDO" (files1, 26/08/2026)
+
+Esta auditoria evaluo el sexto pase y encontro que la sincronizacion de
+normas (P0 4.1/4.2 del pase anterior) habia quedado bien resuelta, pero
+detecto que la propia expansion a 7 normas del quinto pase nunca conecto
+`isRoman` -- ya presente en la base de datos y en `TIPOS_TESIS` desde
+siempre -- con el payload que llega a `generate-docx`, y que el lock de
+creacion de secciones virtuales seguia pendiente desde el cuarto pase
+(estaba en la lista de "Pendiente", nunca llego a implementarse). Al
+verificar la correccion del primer hallazgo generando un DOCX real de
+prueba (ver metodo abajo) aparecio ademas un tercer bug que ninguna
+auditoria anterior habia senalado: un encabezado "Referencias
+bibliograficas" duplicado en ambos exportadores.
 
 ### P0
 
-20. [P0 4.2, integridad relacional] citations no garantizaba que
-    section/reference pertenecieran al mismo project que la fila de
-    citations -- las FK individuales eran validas cada una por separado,
-    pero nada impedia mezclar IDs de dos proyectos distintos del mismo
-    usuario. supabase/migrations/0006_citations_integrity.sql agrega
-    constraints unique en sections(id, project) y bibliography(id,
-    project), y luego FKs COMPUESTAS en citations(section, project) ->
-    sections(id, project) y citations(reference, project) ->
-    bibliography(id, project). Incluye backfill que elimina (si existieran)
-    filas previas inconsistentes antes de poder agregar las constraints.
+31. [P0 4.1, CRITICO] `generate-docx` nunca supo que una seccion era
+    preliminar: el payload que arma `ExportPanel.tsx` (`buildDocxPayload`)
+    no incluia el campo `isRoman`, asi que TODAS las secciones -- portada
+    oficial, aprobacion del jurado, dedicatoria, resumen/abstract,
+    palabras clave incluidas -- caian en el unico Word Section arabigo
+    junto con los capitulos reales, mezcladas y mal numeradas, aunque
+    `sections.is_roman` ya estuviera correcto en la base de datos desde el
+    backfill del sexto pase. Se agrego `isRoman: fase.isRoman` al payload
+    (`ExportPanel.tsx`) y `buildDocx()` (`generate-docx/index.ts`) ahora
+    separa las secciones en dos grupos reales: las preliminares (roman,
+    excluyendo los indices automaticos que ya cubre el campo TOC de Word)
+    se agregan al mismo Word Section romano que ya existia para el indice;
+    el resto sigue fluyendo al Word Section arabigo. Payloads viejos sin
+    el campo (`isRoman` ausente) siguen degradando al comportamiento
+    anterior en vez de romper -- no es un cambio disruptivo.
 
-21. [P0 4.4, cobertura bibliografica] Solo libre/APA/Vancouver estaban
-    conectados -- IEEE y Chicago ya existian como funciones muertas en
-    lib/utils.ts (formatRefIEEE/formatRefChicago) sin que nada las llamara.
-    - types/index.ts: NormaType ahora incluye tambien ieee, chicago, mla,
-      harvard (7 estilos en total). ISO 690 queda deliberadamente fuera de
-      este pase (es una familia de variantes, no un estilo fijo -- merece
-      su propia sesion).
-    - lib/utils.ts: formatRef() e IEEE/Chicago ahora se usan de verdad;
-      se agregaron formatRefMLA y formatRefHarvard. buildCiteText() y el
-      resto del codigo que comparaba directo contra 'vancouver'
-      (ExportPanel.tsx, useRevision.ts) ahora usan
-      NORMAS[norma].citationFormat ('numbered' vs 'author-year'), asi que
-      IEEE tambien numera correctamente como Vancouver.
-    - Sidebar.tsx y DashboardPage.tsx: el selector de norma paso de pill
-      buttons (no escalaban a 7 opciones) a un <select>.
-    - Toolbar.tsx: el indicador de norma en la barra de herramientas
-      tambien mostraba vacio para cualquier estilo que no fuera apa o
-      vancouver; ahora se arma desde NORMAS directamente.
-    - supabase/migrations/0007_norma_expansion.sql: redefine
-      create_project_with_sections() para aceptar los 7 valores nuevos, y
-      agrega un CHECK constraint en projects.norma que antes no existia --
-      cambiar la norma de un proyecto YA CREADO (store/index.ts setNorma)
-      escribe directo con un UPDATE que nunca pasaba por la RPC ni por
-      ninguna validacion.
+    Verificacion real (no solo lectura de codigo): se armo un arnes fuera
+    de Deno (`docx@9.7.1` instalado via npm, TypeScript compilado con
+    `tsc` en modo suelto) para poder ejecutar `buildDocx()` de verdad con
+    un payload sintetico de una tesis tipo 0 completa (7 preliminares + 4
+    capitulos + anexos), generar el .docx, convertirlo a PDF con
+    LibreOffice headless y rasterizar cada pagina para inspeccion visual.
+    Confirmado: portada sin numero visible -> preliminares con numeros
+    romanos reales (i, ii... vi) incluyendo el contenido real que el
+    usuario escribio en "Portada oficial" (antes se hubiera perdido/
+    duplicado) -> cuerpo con numeros arabigos empezando en 1.
+
+32. [Hallazgo propio, no listado por la auditoria] Al verificar el punto
+    31 generando el DOCX de prueba goteo un tercer bug real: `TIPOS_TESIS`
+    siempre incluye "Referencias bibliograficas" como una seccion
+    editable normal, pero la bibliografia real (formateada por norma, en
+    orden de cita) siempre se agrega aparte via `referencesHtml`/
+    `citedRefs` -- el contenido propio de esa seccion nunca se usa. Si el
+    usuario alguna vez escribia algo ahi (o el placeholder "Sin
+    contenido." simplemente se imprimia), el DOCX y el PDF mostraban DOS
+    encabezados "Referencias bibliograficas" seguidos: uno con lo que
+    fuera que tuviera esa seccion, y otro con la lista real generada.
+    Se excluyo ese item por nombre (`AUTO_BIBLIO`) tanto en
+    `buildHTMLDoc` como en `buildDocxPayload` (`ExportPanel.tsx`), del
+    mismo modo que ya se excluian los indices automaticos (`AUTO_IDX`).
+    Confirmado visualmente en el mismo render de prueba: un solo
+    encabezado, con la lista real.
 
 ### P1
 
-22. [P1 item 7] Deteccion de referencias duplicadas usaba autor+año como
-    unica clave -- dos articulos distintos del mismo autor en el mismo año
-    (algo normal) se marcaban como duplicados. La clave ahora incluye el
-    titulo normalizado.
+33. [P1 5.1, GRAVE] `SectionEditor.tsx` seguia sin el lock de creacion
+    que la lista de pendientes del cuarto pase ya habia identificado:
+    `handleSave` disparaba un INSERT cada vez que `pbIdRef.current` era
+    null, y como Tiptap dispara `onUpdate` en cada tecla, varias llamadas
+    concurrentes podian ver `pbIdRef.current` en null a la vez (ninguna
+    habia recibido aun la respuesta de la primera) e insertar filas
+    duplicadas para lo que el usuario percibe como una sola seccion
+    virtual. Se agrego `creatingRef` (una promesa compartida de creacion
+    en curso): toda llamada concurrente espera la MISMA peticion en vez
+    de iniciar una nueva, y `pbIdRef.current` se fija una sola vez cuando
+    esa unica peticion resuelve.
 
-23. [P1 items 4 y 5] TABLE_NO_SOURCE (tabla sin nota de fuente) estaba en
-    level:'error' pese a ser una heuristica de texto (busca la palabra
-    "nota" en el paragrafo siguiente) vulnerable a falsos positivos y
-    negativos. Bajado a 'warning', con mensaje que dice explicitamente que
-    puede ser un falso positivo.
+34. [Documentacion] `tep/README.md` no documentaba las variables de
+    entorno que realmente usan las Edge Functions (se inyectan solas via
+    Supabase, no requieren `.env` propio ni configuracion de CORS manual
+    -- `withSupabase()` resuelve ambas cosas), ni el orden obligatorio de
+    aplicacion de las migraciones (estan numeradas y varias redefinen
+    `create_project_with_sections()` sobre la version anterior via
+    `create or replace function`, asi que aplicarlas fuera de orden deja
+    el RPC con una validacion vieja), ni que no existen migraciones
+    `down` (el camino seguro para revertir algo en produccion es una
+    migracion nueva que deshaga el cambio puntual, nunca editar un
+    archivo ya aplicado). Se agrego todo eso mas una checklist corta
+    antes de pasar a produccion.
 
-24. [P1 item 9] Lookup de DOI llamaba directo a api.crossref.org desde el
-    navegador. Nueva Edge Function supabase/functions/lookup-doi/index.ts
-    (mismo patron que check-grammar): requiere usuario autenticado, valida
-    longitud del DOI, y hace la llamada a CrossRef del lado servidor.
-    lib/utils.ts (lookupDOI) ahora llama a esa funcion en vez de a
-    CrossRef directo.
+Build verificado de nuevo: npm ci + tsc --noEmit + npm run build, limpio.
+Ademas, a diferencia de los pases anteriores, el cambio central (P0 4.1)
+se verifico generando y renderizando un DOCX real, no solo revisando que
+compile -- ver metodo en el item 31.
 
-25. [P1 item 13] Los borradores locales (localDraftBackup.ts) pueden
-    contener contenido inedito de tesis, y nada los limpiaba salvo el
-    guardado exitoso de esa seccion puntual -- en un equipo compartido,
-    cerrar sesion dejaba todos los borradores en localStorage disponibles
-    para el siguiente usuario del navegador.
-    - store/index.ts: flushSection/flushPendingSaves ahora devuelven una
-      Promise (antes era fire-and-forget) para poder esperar a que
-      terminen.
-    - hooks/useAuth.ts (signOut): espera flushPendingSaves() (le da a los
-      cambios pendientes una oportunidad real de guardarse antes de
-      cerrar sesion), limpia TODOS los borradores locales restantes
-      (clearAllLocalDrafts, incluye los que hayan fallado por falta de
-      conexion -- cerrar sesion es una decision explicita, y el riesgo de
-      privacidad de dejar contenido en un equipo compartido pesa mas que
-      conservar una copia local a la que el usuario ya no puede acceder
-      una vez fuera de sesion), y recien despues llama a
-      supabase.auth.signOut().
+## Pendiente tras este pase (confirmado, requiere sesion dedicada o
+arquitectura)
+
+De la lista P0/P1 de la auditoria "files1" (26/08/2026), quedan sin tocar
+en este pase, por los mismos motivos que en el sexto pase (ver arriba):
+
+- Paginacion 100% real pixel-exacta (arquitectura de medicion de DOM o
+  motor PDF server-side).
+- Exportacion DOCX/PDF reconstruida server-side desde la base de datos en
+  vez de confiar en el payload del cliente -- requiere portar el motor
+  completo de `formatRef()` a la Edge Function, sin loop de build/test
+  local en este entorno.
+- Suite de pruebas automatizadas, `strict: true` progresivo, validador
+  academico estructural real, optimistic locking/control de conflictos
+  entre dispositivos, retry/backoff robusto en el autosave.
+- Menores: alert()/confirm() nativos, reduccion de `any` en
+  `generate-docx`, interfaz completa de versiones, projectId/ownership
+  explicito en `check-grammar`.
+
+## Octavo pase -- Auditoria "Graduate-main-CORREGIDO" (files2, 27/08/2026)
+
+Esta auditoria confirmo las tres mejoras del septimo pase (lock de
+creacion, separacion romano/arabigo, dedup de referencias) y encontro dos
+hallazgos P0 nuevos en la interaccion entre `TIPOS_TESIS`, `ExportPanel` y
+`generate-docx` que ninguna auditoria anterior habia detectado: doble
+portada, e indices de tablas/figuras/cuadros mostrando el indice general
+en vez del indice especifico.
+
+### P0
+
+35. [P0 4.1, CRITICO -- doble portada] Arreglar `isRoman` en el septimo
+    pase tuvo un efecto secundario no previsto: al volverse preliminar de
+    verdad, "Portada oficial" (o "Portada, aprobacion, dedicatoria" en
+    tipo 1/2) empezo a renderizarse como una pagina romana normal, ADEMAS
+    de `coverSection()`, que siempre genera su propia portada automatica
+    desde `project.title/author/institution`. Resultado: dos portadas --
+    la automatica y la editable, ambas presentes -- o, si el usuario nunca
+    escribio nada ahi, una pagina vacia extra con "Portada oficial" y "Sin
+    contenido." en medio del documento. Mismo problema en el PDF
+    (`buildHTMLDoc`).
+
+    Corregido siguiendo la Opcion A recomendada por la auditoria: la
+    seccion "Portada oficial" ES la portada real cuando tiene contenido
+    real (`hasRealTiptapContent()`/`hasRealContent()`, nuevo helper
+    espejado en frontend y en `generate-docx` -- ver comentario ahi sobre
+    por que este espejo puntual no arrastra el mismo riesgo de
+    desincronizacion que `NORMAS`); la portada automatica por metadata
+    queda solo como respaldo para un proyecto todavia vacio. En cualquiera
+    de los dos casos, esa seccion nunca se vuelve a renderizar una segunda
+    vez como pagina preliminar ordinaria. `coverSectionFromContent()`
+    nuevo en `generate-docx/index.ts`; misma logica en `buildHTMLDoc`
+    (PDF) via `coverHTML`.
+
+36. [P0 4.2, CRITICO -- indices especificos incorrectos] `AUTO_IDX`
+    trataba "Indice de tablas", "Indice de figuras", "Indice de tablas y
+    figuras" y "Indice de cuadros comparativos" igual que "Indice
+    general": los cuatro llamaban al mismo generador de indice de
+    capitulos (`buildTOCHTML` en PDF; simplemente se omitian sin
+    reemplazo en DOCX). Un usuario buscando la lista de tablas de su tesis
+    recibia la lista de capitulos, o nada.
+
+    El editor no tiene un sistema de captions/numeracion de tablas y
+    figuras (eso es una funcionalidad real y separada, ver pendientes),
+    pero sin inventar ese subsistema completo se puede igual recorrer el
+    documento real y reportar las tablas/imagenes que existen de verdad,
+    en el orden en que aparecen, en vez de sustituir silenciosamente la
+    lista equivocada. Se agregaron `hasRealTiptapContent`,
+    `collectCaptionedItems` y `collectCaptionedItemsMixed` en
+    `lib/utils.ts` (frontend, unica fuente de verdad para PDF Y DOCX --
+    ver nota abajo sobre por que se centralizo ahi) que recorren el JSON
+    de Tiptap real y devuelven "Tabla 1", "Figura 1", etc. en orden de
+    documento, con la etiqueta de pagina estimada de la seccion donde
+    aparecen. "Indice de cuadros comparativos" (tipo 2) reusa la deteccion
+    de tablas, etiquetado como "Cuadro". "Indice general" sigue siendo el
+    unico caso especial: usa el campo TOC real de Word (heading-based) en
+    vez de una lista de captions.
+
+    Refactor de paso: `buildHTMLDoc` y `buildDocxPayload` (ambos en
+    `ExportPanel.tsx`) tenian cada uno su propia copia de `AUTO_IDX` /
+    `AUTO_BIBLIO` y su propio calculo de paginas -- exactamente el patron
+    de duplicacion que causo los bugs de `isRoman` y CSS de MLA/Harvard en
+    auditorias anteriores. Se extrajo `buildSectionIndexModel()` (modulo,
+    no componente) como el UNICO lugar que decide cual seccion es la
+    portada, las etiquetas de pagina y el inventario de tablas/figuras;
+    ambos exportadores lo llaman y ninguno vuelve a calcularlo por su
+    cuenta.
+
+    Hallazgo adicional durante esta correccion (P1 5.3 de la auditoria,
+    "el TOC de Word puede incluir preliminares"): confirmado en el
+    codigo -- `preliminaryChildren` usaba `heading: HeadingLevel.HEADING_1`
+    para "Aprobacion del jurado", "Dedicatoria...", etc., y
+    `TableOfContents` tiene `headingStyleRange: '1-3'`, asi que esos
+    titulos preliminares se listaban dentro de "Indice general" junto a
+    los capitulos reales. Se agrego un estilo de parrafo propio,
+    `PreliminaryTitle` (visualmente identico a Heading 1: misma
+    tipografia, tamano, color y espaciado, ver `buildStyles()`), que el
+    campo TOC de Word no recorre por no ser uno de sus estilos
+    integrados -- el titulo preliminar se ve igual, pero ya no aparece
+    dentro del indice general.
+
+Verificacion real, no solo lectura de codigo ni compilacion: se re-uso el
+arnes del septimo pase (docx@9.7.1 fuera de Deno) con un payload sintetico
+que incluye portada con contenido real, una tabla y una imagen reales en
+el cuerpo, e indices de tablas/figuras con `captionIndex` precalculado
+como lo haria el frontend. Render a PDF vía LibreOffice headless,
+inspeccionado pagina por pagina: una sola portada (la del usuario, sin
+numero visible) -> preliminares en romano sin duplicar la portada ->
+"Indice de tablas" mostrando "Tabla 1 -- 1" (no el indice de capitulos) ->
+"Indice de figuras" mostrando "Figura 1 -- 2" -> cuerpo arabigo desde 1
+con la tabla y la imagen reales -> una sola "Referencias bibliograficas".
 
 Build verificado de nuevo: npm ci + tsc --noEmit + npm run build, limpio.
 
-## Pendiente tras este pase
+## Pendiente tras este pase (confirmado, requiere sesion dedicada o
+arquitectura)
 
-De la lista P0/P1 de esta auditoria, quedaron sin tocar (requieren
-arquitectura dedicada, no un parche seguro en esta sesion):
+De la lista P0/P1 de la auditoria "files2" (27/08/2026), quedan sin tocar
+en este pase:
 
-- P0 4.1: certificacion de build en CI real (verificado aqui en el
-  sandbox de esta sesion en cada pase, pero la auditoria pide
-  especificamente que el propio pipeline de GitHub Actions falle si
-  tsc/vite no compilan -- repasar que el workflow existente realmente
-  bloquee merges).
-- P0 4.3: matriz de trazabilidad academica (Objetivo -> Pregunta/Hipotesis
-  -> Variable -> Dimension -> Indicador -> Tecnica -> Instrumento ->
-  Resultado -> Conclusion) -- el validador academico actual sigue siendo
-  heuristico por busqueda de texto, no una verificacion estructural real.
-- P1: reduccion de "any" en zonas sensibles (export DOCX, nodos Tiptap).
-- P1: reemplazar alert/confirm por componentes de UI propios (toca muchos
-  archivos, riesgo de regresion visual si se apura).
-- P1: interfaz completa de versiones (restaurar/comparar/eliminar) --
-  saveVersion() existe pero no hay UI para usarlo.
-- P1: retry/backoff y estados de sincronizacion mas explicitos en el
-  autosave (mas alla de local/enviando/guardado).
-- P2 (todos): importacion BibTeX/RIS/CSL, comparacion de versiones,
-  onboarding, telemetria, E2E completo -- evolucion de producto, no
-  correcciones.
+- P1 5.2 / P2 14 (sistema real de captions y numeracion de tablas/figuras
+  -- nodos `TableCaption`/`FigureCaption` en Tiptap, numeracion automatica,
+  referencias cruzadas): la correccion de este pase (items 35-36) resuelve
+  el bug concreto -- ya no se muestra la lista equivocada -- pero sigue
+  sin ser un indice academico completo con captions reales escritas por el
+  usuario ("Tabla 1: Distribucion de la muestra"), solo una enumeracion
+  posicional. Construir el subsistema de captions es una funcionalidad
+  nueva de por si, no un parche.
+- P0 4.3/P1 6 (exportacion DOCX/PDF reconstruida server-side desde la base
+  de datos en vez de confiar en el payload del cliente): mismo motivo que
+  en el septimo pase -- requiere portar el motor completo de `formatRef()`
+  a la Edge Function, sin loop de build/test local en este entorno.
+- P0 4.4/P1 (paginacion 100% real pixel-exacta): mismo motivo que en todos
+  los pases anteriores -- arquitectura de medicion de DOM o motor PDF
+  server-side.
+- P1 5.6 (PDF server-side, Chromium en vez de `window.print()`), suite de
+  pruebas automatizadas, `strict: true` progresivo, optimistic
+  locking/control de conflictos entre dispositivos, retry/backoff robusto.
+- Menores: alert()/confirm() nativos, ESLint, control de tamano/
+  compresion de imagenes en el frontend, reduccion de `any` en
+  `generate-docx`, interfaz completa de versiones.

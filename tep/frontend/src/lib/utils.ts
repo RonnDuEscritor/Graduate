@@ -25,6 +25,89 @@ export function countWords(node: TiptapNode | null | undefined): number {
   return text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0
 }
 
+// ── STRUCTURAL SECTION HELPERS (audit "files2" 27/08/2026) ─────
+// Shared by both exporters (ExportPanel.tsx's buildHTMLDoc for PDF and
+// buildDocxPayload for DOCX) so the two never drift apart on what counts
+// as "this section has real content" or "these are the tables/figures in
+// the document" -- exactly the kind of frontend/backend (or, here,
+// PDF/DOCX) mismatch that caused the isRoman and norma-CSS bugs in
+// earlier audits. Both exporters call these, not their own copies.
+
+// True only if the Tiptap doc has visible text, an image, or a table --
+// not just an empty paragraph (which is what a freshly created, untouched
+// section actually contains, not `null`).
+export function hasRealTiptapContent(doc: TiptapNode | null | undefined): boolean {
+  if (!doc || !Array.isArray(doc.content)) return false
+  let found = false
+  const walk = (n: TiptapNode) => {
+    if (found) return
+    if (n.type === 'text' && (n.text ?? '').trim().length > 0) { found = true; return }
+    if (n.type === 'image' || n.type === 'table') { found = true; return }
+    n.content?.forEach(walk)
+  }
+  doc.content.forEach(walk)
+  return found
+}
+
+// Depth-first walk collecting every node of the given types, in real
+// document order (so a table appearing after a figure on the same page
+// stays after it in the result -- this is NOT two separate passes).
+function collectNodesByType(doc: TiptapNode | null | undefined, types: string[], out: TiptapNode[]) {
+  if (!doc?.content) return
+  doc.content.forEach(n => {
+    if (types.includes(n.type)) out.push(n)
+    collectNodesByType(n, types, out)
+  })
+}
+
+export interface CaptionedItem { kind: 'table' | 'image'; number: number; sectionName: string }
+
+// Audit P0 4.2 fix: 'Indice de tablas', 'Indice de figuras', 'Indice de
+// tablas y figuras' and 'Indice de cuadros comparativos' used to all call
+// the SAME general chapter table-of-contents generator as 'Indice
+// general' -- so a reader looking for "list of tables" got a list of
+// chapters instead. There's no captions/numbering subsystem in the editor
+// yet (that's a real, separate feature -- see CAMBIOS.md pendientes), but
+// without inventing one we can still walk the actual document and report
+// the REAL tables/images that exist, in the order they appear, instead of
+// silently substituting the wrong list. `orderedSections` must already be
+// in final document reading order (preliminary sections excluded -- see
+// callers) with each entry's real Tiptap content.
+export function collectCaptionedItems(
+  orderedSections: { name: string, content: TiptapNode | null | undefined }[],
+  nodeType: 'table' | 'image',
+): CaptionedItem[] {
+  const items: CaptionedItem[] = []
+  let counter = 0
+  orderedSections.forEach(({ name, content }) => {
+    const found: TiptapNode[] = []
+    collectNodesByType(content, [nodeType], found)
+    found.forEach(() => { counter++; items.push({ kind: nodeType, number: counter, sectionName: name }) })
+  })
+  return items
+}
+
+// Same as collectCaptionedItems, but for 'Indice de tablas y figuras'
+// (used by tipo 1, "Proyecto factible / tecnico"): tables and figures
+// interleaved in true document order, each numbered within its own kind
+// (Tabla 1, Figura 1, Tabla 2, Figura 2...), matching how such a combined
+// index is normally read.
+export function collectCaptionedItemsMixed(
+  orderedSections: { name: string, content: TiptapNode | null | undefined }[],
+): CaptionedItem[] {
+  const items: CaptionedItem[] = []
+  let tableCount = 0, imageCount = 0
+  orderedSections.forEach(({ name, content }) => {
+    const found: TiptapNode[] = []
+    collectNodesByType(content, ['table', 'image'], found)
+    found.forEach(n => {
+      if (n.type === 'table') { tableCount++; items.push({ kind: 'table', number: tableCount, sectionName: name }) }
+      else { imageCount++; items.push({ kind: 'image', number: imageCount, sectionName: name }) }
+    })
+  })
+  return items
+}
+
 // -- REFERENCE FORMATTERS -----------------------------------------
 // Security note (audit 3.5): the formatted string these functions return
 // is rendered via dangerouslySetInnerHTML in ReferencesPanel.tsx, and also

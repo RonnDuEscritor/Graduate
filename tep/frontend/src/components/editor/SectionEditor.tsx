@@ -46,6 +46,17 @@ export default function SectionEditor({
   const isActive  = activeSectionId === sectionId
   const isVirtual = sectionId.startsWith('virtual-')
   const pbIdRef   = useRef<string | null>(isVirtual ? null : sectionId)
+  // Audit 5.1 fix (GRAVE/P1): handleSave used to check `if (!pbIdRef.current)`
+  // and fire an INSERT directly. Tiptap's onUpdate fires on every keystroke,
+  // so several handleSave calls can be in flight before the FIRST insert's
+  // response comes back and sets pbIdRef.current -- each of those calls
+  // independently sees pbIdRef.current as still null and starts its own
+  // INSERT, creating duplicate rows for what the user experiences as one
+  // section. creatingRef holds the in-flight creation promise so every
+  // concurrent caller awaits the SAME request instead of starting a new
+  // one; only the first call's insert actually happens, and pbIdRef.current
+  // is set exactly once when it resolves.
+  const creatingRef = useRef<Promise<string> | null>(null)
   // Audit 2.1: remembers the last citation-refId list we reconciled to the
   // database, so syncSectionCitations only fires network calls when that
   // list actually changed -- not on every keystroke of an unrelated edit.
@@ -98,10 +109,16 @@ export default function SectionEditor({
     editorProps: { attributes: { class: 'tiptap' } },
   })
 
-  // Save handler
-  const handleSave = useCallback(async (json: TiptapDoc, wc: number) => {
-    if (!pbIdRef.current) {
-      setSaving(true)
+  // Ensures the section row exists in Supabase, creating it at most once
+  // even under concurrent calls (see creatingRef comment above). Returns
+  // the real section id -- the caller always awaits this before saving
+  // content or syncing citations against it.
+  const ensureSectionId = useCallback((json: TiptapDoc, wc: number): Promise<string> => {
+    if (pbIdRef.current) return Promise.resolve(pbIdRef.current)
+    if (creatingRef.current) return creatingRef.current
+
+    setSaving(true)
+    const promise: Promise<string> = (async () => {
       try {
         const { data: rec, error } = await supabase
           .from('sections')
@@ -116,16 +133,31 @@ export default function SectionEditor({
           .select().single()
         if (error) throw error
         pbIdRef.current = rec.id
-        saveSectionContent(rec.id, json, wc)
         setSaving(false)
         setLastSaved(new Date())
+        return rec.id as string
       } catch (e) {
         console.error('Error creating section:', e)
         setSaving(false)
+        throw e
+      } finally {
+        creatingRef.current = null
       }
-    } else {
-      saveSectionContent(pbIdRef.current, json, wc)
+    })()
+
+    creatingRef.current = promise
+    return promise
+  }, [projectId, sectionName, fase, orderIndex, setSaving, setLastSaved])
+
+  // Save handler
+  const handleSave = useCallback(async (json: TiptapDoc, wc: number) => {
+    let id: string
+    try {
+      id = await ensureSectionId(json, wc)
+    } catch {
+      return // ensureSectionId already logged the error and reset saving state
     }
+    saveSectionContent(id, json, wc)
 
     // Audit 2.1/3.1 fix: reconcile the citations table against what the
     // document actually contains right now, so deleting a citation chip
@@ -133,15 +165,13 @@ export default function SectionEditor({
     // Vancouver numbering on the very next save -- not left stale. Skipped
     // when the extracted reference list hasn't changed, so an unrelated
     // keystroke doesn't trigger citation network calls.
-    if (pbIdRef.current) {
-      const refIds = extractCitationRefIds(json as unknown as TiptapNode)
-      const signature = refIds.join(',')
-      if (signature !== lastCitationRefsRef.current) {
-        lastCitationRefsRef.current = signature
-        syncSectionCitations(pbIdRef.current, refIds)
-      }
+    const refIds = extractCitationRefIds(json as unknown as TiptapNode)
+    const signature = refIds.join(',')
+    if (signature !== lastCitationRefsRef.current) {
+      lastCitationRefsRef.current = signature
+      syncSectionCitations(id, refIds)
     }
-  }, [projectId, sectionName, fase, saveSectionContent, setSaving, setLastSaved, syncSectionCitations])
+  }, [ensureSectionId, saveSectionContent, syncSectionCitations])
 
   // Manual save
   useEffect(() => {

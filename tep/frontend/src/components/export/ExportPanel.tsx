@@ -1,9 +1,77 @@
 import { useState } from 'react'
 import { useStore } from '@/store'
 import { TIPOS_TESIS, NORMAS } from '@/types'
-import { formatRef, escapeHtml, estimatePageRanges } from '@/lib/utils'
+import { formatRef, escapeHtml, estimatePageRanges, hasRealTiptapContent, collectCaptionedItems, collectCaptionedItemsMixed } from '@/lib/utils'
+import type { CaptionedItem } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
-import type { PBSection, TiptapNode } from '@/types'
+import type { PBSection, TiptapNode, NormaType } from '@/types'
+
+// Audit "files2" (27/08/2026) P0 4.1/4.2 fix: this used to be computed
+// twice, once inline in buildHTMLDoc (PDF) and once inline in
+// buildDocxPayload (DOCX), with each having its own copy of AUTO_IDX /
+// AUTO_BIBLIO and its own page-label loop. That's exactly the kind of
+// duplication that caused earlier audits to find the PDF and DOCX
+// exporters silently disagreeing (isRoman missing from one, MLA/Harvard
+// CSS missing from another) -- so this is now the ONE place that decides
+// which section is the portada, which are auto-generated placeholders,
+// and what page label / caption index each section gets. Both exporters
+// call this and nothing else computes it.
+const AUTO_IDX     = ['Indice general','Indice de tablas','Indice de figuras','Indice de tablas y figuras','Indice de cuadros comparativos']
+const AUTO_BIBLIO  = ['Referencias bibliograficas']
+const AUTO_PORTADA = ['Portada']
+
+interface SectionIndexModel {
+  pageLabelByName: Map<string, string>
+  orderedContentSections: { name: string, content: TiptapNode | null | undefined }[]
+  portadaName: string | null
+}
+
+function buildSectionIndexModel(t: typeof TIPOS_TESIS[0], secMap: Map<string, PBSection>, norma: NormaType): SectionIndexModel {
+  // Audit 2.1 fix (CRITICO), computed once here now: this used to label
+  // every section's printed page as a single incrementing integer ("1
+  // seccion = 1 pagina"); labels are an estimated range from
+  // estimatePageRanges() (same estimator used in the editor's own page
+  // badges, see EditorPage.tsx). Computed for ALL fases up front so an
+  // index section appearing early (preliminary fase) can already look up
+  // the label of a table/figure that lives in a later fase.
+  const pageLabelByName = new Map<string, string>()
+  let arCursor = 1, romCursor = 1
+  t.fases.forEach(fase => {
+    const items  = fase.items.map(name => ({ name, wordCount: secMap.get(name)?.word_count ?? 0 }))
+    const ranges = estimatePageRanges(items, norma, fase.isRoman, fase.isRoman ? romCursor : arCursor)
+    const last   = [...ranges.values()].pop()
+    if (last) { if (fase.isRoman) romCursor = last.end + 1; else arCursor = last.end + 1 }
+    items.forEach(({ name }) => { pageLabelByName.set(name, ranges.get(name)?.label ?? '') })
+  })
+
+  // Real document order, content-bearing sections only (no auto indices,
+  // no bibliography placeholder, no portada) -- what the P0 4.2 fix
+  // (tablas/figuras/cuadros indices) walks to find the actual table/image
+  // nodes the user inserted, instead of the wrong general chapter index
+  // every specific index used to show.
+  const orderedContentSections: { name: string, content: TiptapNode | null | undefined }[] = []
+  let portadaName: string | null = null
+  t.fases.forEach(fase => fase.items.forEach(name => {
+    if (AUTO_PORTADA.some(x => name.startsWith(x))) { if (!portadaName) portadaName = name; return }
+    if (AUTO_IDX.some(x => name.startsWith(x))) return
+    if (AUTO_BIBLIO.some(x => name.startsWith(x))) return
+    orderedContentSections.push({ name, content: secMap.get(name)?.content as unknown as TiptapNode | undefined })
+  }))
+
+  return { pageLabelByName, orderedContentSections, portadaName }
+}
+
+// Given an AUTO_IDX section name, returns which caption list it needs (or
+// null for 'Indice general', which uses a real TOC field/heading walk
+// instead -- it isn't captions-based).
+function captionIndexFor(name: string, orderedContentSections: SectionIndexModel['orderedContentSections']):
+  { tableLabel: string, items: CaptionedItem[] } | null {
+  if (name.startsWith('Indice de tablas y figuras')) return { tableLabel: 'Tabla', items: collectCaptionedItemsMixed(orderedContentSections) }
+  if (name.startsWith('Indice de tablas'))            return { tableLabel: 'Tabla', items: collectCaptionedItems(orderedContentSections, 'table') }
+  if (name.startsWith('Indice de figuras'))            return { tableLabel: 'Tabla', items: collectCaptionedItems(orderedContentSections, 'image') }
+  if (name.startsWith('Indice de cuadros comparativos'))return { tableLabel: 'Cuadro', items: collectCaptionedItems(orderedContentSections, 'table') }
+  return null
+}
 
 // Security note (audit 3.5): this builds an HTML string that gets fed to
 // document.write() in the print/PDF export window, so any user-entered
@@ -71,47 +139,57 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
     const secMap = new Map<string, PBSection>()
     sections.forEach(s => secMap.set(s.name, s))
 
+    // Audit P0 4.1 fix (files2 27/08/2026, CRITICO): the export always
+    // generated its own auto cover page from project metadata (title,
+    // author, institution) AND, separately, rendered TIPOS_TESIS's
+    // 'Portada oficial' (or 'Portada, aprobacion, dedicatoria' for tipo
+    // 1/2) as a normal preliminary page -- two cover pages, one automatic
+    // and one the user could actually edit. If the user had typed real
+    // content into that section it appeared as a bizarre extra page right
+    // after the real cover; if it was empty, the export still printed an
+    // empty "Portada oficial" / "Sin contenido." page for no reason.
+    // Fixed per the audit's recommended Option A: the user-editable
+    // portada section IS the real cover whenever it has actual content
+    // (see hasRealTiptapContent below); the auto-generated metadata cover
+    // is only a fallback for a still-empty project. Either way this
+    // section is never ALSO rendered a second time as an ordinary
+    // preliminary page. See buildSectionIndexModel() above for the shared
+    // (PDF+DOCX) computation of which section is the portada, the page
+    // labels, and the real table/figure inventory for the P0 4.2 fix.
+    const { pageLabelByName, orderedContentSections, portadaName } = buildSectionIndexModel(t, secMap, norma)
+
+    const buildCaptionIndexHTML = (items: CaptionedItem[], tableLabel: string) => {
+      if (items.length === 0) return '<p style="color:#aaa;font-style:italic">No se encontraron elementos en el documento.</p>'
+      let html = '<div style="font-size:11pt">'
+      items.forEach(it => {
+        const label = it.kind === 'table' ? tableLabel : 'Figura'
+        const pg = pageLabelByName.get(it.sectionName) ?? ''
+        html += `<div style="display:flex;justify-content:space-between;padding:3pt 0;border-bottom:.5pt dotted #eee"><span>${label} ${it.number}</span><span style="color:#7D1A31;font-weight:500">${pg}</span></div>`
+      })
+      return html + '</div>'
+    }
+
+    const autoIdxHTML = (name: string): string => {
+      const captioned = captionIndexFor(name, orderedContentSections)
+      return captioned ? buildCaptionIndexHTML(captioned.items, captioned.tableLabel) : buildTOCHTML(t, sections)
+    }
+
     let bodyHTML = ''
-
-    // Audit ALTA fix: this used to search for 'Indice' WITH an accent
-    // (Indice), but TIPOS_TESIS (types/index.ts) spells every section name
-    // WITHOUT accents on purpose (the whole codebase avoids them so it stays
-    // safe to paste through Notepad -> GitHub), so 'Indice general' never
-    // matched and the auto-generated table of contents was never inserted
-    // for these sections -- they exported as empty headings instead.
-    const AUTO_IDX = ['Indice general','Indice de tablas','Indice de figuras','Indice de tablas y figuras','Indice de cuadros comparativos']
-
-    // Audit 2.1 fix (CRITICO): this used to label every section's printed
-    // page number as a single incrementing integer ("1 seccion = 1
-    // pagina"), so a 3-page introduction and a 12-page chapter were both
-    // stamped as one page, and everything after the first long chapter was
-    // wrong by however many real pages it actually spanned. Labels are now
-    // an estimated range from estimatePageRanges() (same estimator used in
-    // the editor's own page badges, see EditorPage.tsx), so a long chapter
-    // reads "4-15" instead of falsely claiming "4". The browser's print
-    // engine still paginates the actual printed content correctly on its
-    // own -- this only fixes the human-readable page LABEL shown per
-    // section and in the table of contents (buildTOCHTML below); real
-    // pixel-accurate estimation would require measuring the live DOM,
-    // which is a larger change tracked separately.
-    let arCursor = 1, romCursor = 1
     t.fases.forEach(fase => {
-      const items  = fase.items.map(name => ({ name, wordCount: secMap.get(name)?.word_count ?? 0 }))
-      const ranges = estimatePageRanges(items, norma, fase.isRoman, fase.isRoman ? romCursor : arCursor)
-      const last   = [...ranges.values()].pop()
-      if (last) { if (fase.isRoman) romCursor = last.end + 1; else arCursor = last.end + 1 }
+      fase.items.forEach(name => {
+        if (AUTO_BIBLIO.some(x => name.startsWith(x))) return  // real list is appended below as bibHTML, not here
+        if (AUTO_PORTADA.some(x => name.startsWith(x))) return // rendered as the cover page instead, see coverHTML below
 
-      items.forEach(({ name }) => {
         const sec = secMap.get(name)
-        const pg  = ranges.get(name)?.label ?? ''
+        const pg  = pageLabelByName.get(name) ?? ''
 
-        const isAutoIdx  = AUTO_IDX.some(x => name.startsWith(x))
+        const isAutoIdx = AUTO_IDX.some(x => name.startsWith(x))
         const content = sec?.content ? tiptapToHTML(sec.content as unknown as TiptapNode) : '<p style="color:#aaa;font-style:italic">Sin contenido.</p>'
 
         bodyHTML += `<div style="page-break-before:always">
           <div style="font-size:8pt;color:#999;text-align:right;margin-bottom:8pt">${pg}</div>
           <h2>${name}</h2>
-          ${isAutoIdx ? buildTOCHTML(t, sections) : content}
+          ${isAutoIdx ? autoIdxHTML(name) : content}
         </div>`
       })
     })
@@ -126,6 +204,17 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
       })
       bibHTML += '</div>'
     }
+
+    const portadaContent = portadaName ? secMap.get(portadaName)?.content as unknown as TiptapNode | undefined : undefined
+    const coverHTML = hasRealTiptapContent(portadaContent)
+      ? `<div style="page-break-after:always;padding:60pt 0">${tiptapToHTML(portadaContent)}</div>`
+      : `<div style="text-align:center;page-break-after:always;padding:80pt 0">
+  <div style="font-size:9pt;text-transform:uppercase;letter-spacing:.12em;color:#7D1A31;margin-bottom:10pt">Tesis de Grado · ${NORMAS[norma].label}</div>
+  <h1 style="font-size:22pt;margin:0 0 10pt">${escapeHtml(project.title)}</h1>
+  ${project.author ? `<p style="font-size:11pt;color:#666">${escapeHtml(project.author)}</p>` : ''}
+  ${project.institution ? `<p style="font-size:10pt;color:#888">${escapeHtml(project.institution)}</p>` : ''}
+  <p style="font-size:10pt;color:#aaa;margin-top:16pt">Graduate Pro — RonnDu Corp. · ${project.year ?? new Date().getFullYear()}</p>
+</div>`
 
     return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
@@ -142,13 +231,7 @@ table{border-collapse:collapse;width:100%;margin:1em 0}
 th{font-weight:600;color:#450A1B;padding:6pt 9pt;border-bottom:1.5pt solid #7D1A31;text-align:left}
 td{padding:5pt 9pt;border-bottom:.5pt solid #E9BAC5}
 </style></head><body>
-<div style="text-align:center;page-break-after:always;padding:80pt 0">
-  <div style="font-size:9pt;text-transform:uppercase;letter-spacing:.12em;color:#7D1A31;margin-bottom:10pt">Tesis de Grado · ${NORMAS[norma].label}</div>
-  <h1 style="font-size:22pt;margin:0 0 10pt">${escapeHtml(project.title)}</h1>
-  ${project.author ? `<p style="font-size:11pt;color:#666">${escapeHtml(project.author)}</p>` : ''}
-  ${project.institution ? `<p style="font-size:10pt;color:#888">${escapeHtml(project.institution)}</p>` : ''}
-  <p style="font-size:10pt;color:#aaa;margin-top:16pt">Graduate Pro — RonnDu Corp. · ${project.year ?? new Date().getFullYear()}</p>
-</div>
+${coverHTML}
 ${bodyHTML}${bibHTML}
 </body></html>`
   }
@@ -204,19 +287,62 @@ ${bodyHTML}${bibHTML}
 
     const secMap = new Map<string, PBSection>()
     sections.forEach(s => secMap.set(s.name, s))
-    // Audit ALTA fix: this used to search for 'Indice' WITH an accent
-    // (Indice), but TIPOS_TESIS (types/index.ts) spells every section name
-    // WITHOUT accents on purpose (the whole codebase avoids them so it stays
-    // safe to paste through Notepad -> GitHub), so 'Indice general' never
-    // matched and the auto-generated table of contents was never inserted
-    // for these sections -- they exported as empty headings instead.
-    const AUTO_IDX = ['Indice general','Indice de tablas','Indice de figuras','Indice de tablas y figuras','Indice de cuadros comparativos']
 
-    const docxSections = t.fases.flatMap(fase => fase.items.map(name => ({
-      name,
-      isAutoIndex: AUTO_IDX.some(x => name.startsWith(x)),
-      content: secMap.get(name)?.content ?? null,
-    })))
+    // Shared with buildHTMLDoc (see buildSectionIndexModel above) so the
+    // PDF and DOCX exports can never disagree on which section is the
+    // portada or what the real table/figure inventory is.
+    const { pageLabelByName, orderedContentSections } = buildSectionIndexModel(t, secMap, norma)
+
+    // Same duplicate-heading bug as buildHTMLDoc above (see comment there):
+    // 'Referencias bibliograficas' is a normal TIPOS_TESIS item whose own
+    // content is never what actually gets exported -- the real, formatted
+    // list always comes from referencesHtml below. Excluded from
+    // docxSections entirely so generate-docx never renders a "Referencias
+    // bibliograficas" heading twice.
+    const docxSections = t.fases.flatMap(fase => fase.items.map(name => {
+      const isAutoIndex = AUTO_IDX.some(x => name.startsWith(x))
+      // Audit P0 4.2 fix (files2 27/08/2026, CRITICO): generate-docx used
+      // to just skip rendering ANY isAutoIndex section other than 'Indice
+      // general' (no replacement content at all), or in the previous
+      // pass, everything auto-indexed shared the same real Word TOC field
+      // meant for chapter titles -- so 'Indice de tablas'/'Indice de
+      // figuras'/etc. either showed nothing or showed the wrong index.
+      // captionIndex carries the REAL tables/images found in the document
+      // (see collectCaptionedItems/collectCaptionedItemsMixed in
+      // lib/utils.ts, computed once via buildSectionIndexModel above so
+      // this can never drift from what buildHTMLDoc shows in the PDF) --
+      // generate-docx renders it as a simple list instead of a fabricated
+      // or missing one. 'Indice general' still returns null here and
+      // keeps using the real Word TableOfContents field, which IS
+      // heading-based and doesn't need this.
+      const captionSpec = isAutoIndex ? captionIndexFor(name, orderedContentSections) : null
+      return {
+        name,
+        isAutoIndex,
+        // Audit P0 4.1 fix (CRITICO): this field never existed in the
+        // payload before, even though sections.is_roman is correctly stored
+        // in the database and fase.isRoman is right here in TIPOS_TESIS.
+        // Without it, generate-docx had no way to know a section was
+        // preliminary and dumped every section -- portada, dedicatoria,
+        // resumen, palabras clave, aprobacion del jurado included -- into
+        // the single arabic-numbered body, mixed in with the actual thesis
+        // chapters. See buildDocx() in generate-docx/index.ts for the other
+        // half of this fix.
+        isRoman: fase.isRoman,
+        // Audit P0 4.1 fix (files2 27/08/2026, CRITICO -- doble portada):
+        // tells generate-docx this is the user-editable cover section, so
+        // it can use its real content as THE cover (instead of also
+        // rendering it a second time as an ordinary roman-numbered
+        // preliminary page next to the auto-generated metadata cover).
+        // See coverSectionFromContent() in generate-docx/index.ts.
+        isPortada: AUTO_PORTADA.some(x => name.startsWith(x)),
+        captionIndex: captionSpec ? {
+          tableLabel: captionSpec.tableLabel,
+          items: captionSpec.items.map(it => ({ kind: it.kind, number: it.number, pageLabel: pageLabelByName.get(it.sectionName) ?? '' })),
+        } : null,
+        content: secMap.get(name)?.content ?? null,
+      }
+    })).filter(sec => !AUTO_BIBLIO.some(x => sec.name.startsWith(x)))
 
     const referencesHtml = citedRefs.map((r, i) =>
       formatRef(r, norma, NORMAS[norma].citationFormat === 'numbered' ? (vcOrder.get(r.id) ?? i+1) : i+1)

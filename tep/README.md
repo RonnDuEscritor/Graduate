@@ -135,3 +135,37 @@ puede ver y modificar sus propios proyectos y todo lo que cuelga de ellos.
 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=tu-clave-anonima-publica
 ```
+
+Las Edge Functions (`generate-docx`, `check-grammar`, `lookup-doi`) **no
+necesitan `.env` propio**: `withSupabase()` (paquete `@supabase/server`)
+lee `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` desde
+las variables que Supabase inyecta automaticamente en el runtime de cada
+funcion desplegada -- no hay que configurar nada manualmente ni en el CLI
+ni en el dashboard. `withSupabase()` tambien resuelve CORS (incluido el
+preflight `OPTIONS`) para las tres funciones, asi que no requieren
+configuracion adicional de CORS.
+
+## Orden de las migraciones y rollback
+
+Las migraciones en `supabase/migrations/` estan numeradas y deben
+aplicarse **en orden ascendente** (`0001` -> `0008`); varias redefinen
+`create_project_with_sections()` sobre la version anterior
+(`create or replace function`), asi que aplicarlas fuera de orden puede
+dejar el RPC con una validacion mas vieja que la ultima. `supabase db push`
+las aplica en orden automaticamente si nunca se salta un archivo.
+
+No existen scripts de rollback (`down` migrations): son incrementales y
+pensadas para no romper datos existentes hacia adelante. Para revertir un
+cambio puntual, la via segura es escribir una migracion nueva que deshaga
+ese cambio especifico (ej. `drop constraint`), nunca editar o borrar un
+archivo de migracion ya aplicado en produccion.
+
+## Antes de pasar a produccion
+
+- Probar exportacion DOCX y PDF con los 3 tipos de tesis y las 7 normas.
+- Probar con secciones que incluyan tablas, imagenes, listas y citas.
+- Confirmar en el dashboard de Supabase que las 8 migraciones estan
+  aplicadas (`supabase migration list`) y que las 3 Edge Functions estan
+  desplegadas y responden (`supabase functions list`).
+- Revisar que `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` en Vercel
+  apunten al proyecto de Supabase correcto (no al de desarrollo).
