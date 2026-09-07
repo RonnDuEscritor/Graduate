@@ -101,7 +101,7 @@ export default function SectionEditor({
           if (onGrammarResults) {
             onGrammarResults(matches, pbIdRef.current ?? sectionId)
           }
-        }, 2500)
+        }, 2500, undefined, projectId)
       } else {
         applyGrammarMarks(editor, [])
       }
@@ -169,9 +169,9 @@ export default function SectionEditor({
     const signature = refIds.join(',')
     if (signature !== lastCitationRefsRef.current) {
       lastCitationRefsRef.current = signature
-      syncSectionCitations(id, refIds)
+      syncSectionCitations(id, refIds, orderIndex)
     }
-  }, [ensureSectionId, saveSectionContent, syncSectionCitations])
+  }, [ensureSectionId, saveSectionContent, syncSectionCitations, orderIndex])
 
   // Manual save
   useEffect(() => {
@@ -246,8 +246,8 @@ export default function SectionEditor({
       if (onGrammarResults) {
         onGrammarResults(matches, pbIdRef.current ?? sectionId)
       }
-    }, 0)
-  }, [isActive, editor, scheduleCheck, onGrammarResults, sectionId])
+    }, 0, undefined, projectId)
+  }, [isActive, editor, scheduleCheck, onGrammarResults, sectionId, projectId])
 
   useEffect(() => {
     window.addEventListener('force-grammar-check', handleForceGrammarCheck)
@@ -278,7 +278,14 @@ export default function SectionEditor({
       <EditorContent editor={editor} onClick={handleFocus} onFocus={handleFocus} />
 
       <div className="page-footer">
-        <span>{pageNum}</span>
+        {/* Audit C-05 fix (Exhaustiva 31/08/2026, honestidad de
+            etiquetado): pageNum ya viene con el prefijo "~" desde
+            EditorPage.tsx (estimatePageRanges) -- se agrega ademas un
+            tooltip explicando que es una estimacion por conteo de
+            palabras, no la paginacion fisica real del documento
+            exportado (eso requiere medir el DOM renderizado o un motor
+            PDF server-side, ver CAMBIOS.md pendientes). */}
+        <span title="Pagina estimada por conteo de palabras -- puede diferir de la paginacion real del documento exportado.">{pageNum}</span>
       </div>
     </div>
   )

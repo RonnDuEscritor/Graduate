@@ -2,23 +2,64 @@ import { useStore } from '@/store'
 import { TIPOS_TESIS } from '@/types'
 import { cn } from '@/lib/utils'
 
-// Academic elements that must exist in a complete thesis
-const ACADEMIC_CHECKLIST = [
-  { key: 'antecedentes',  label: 'Antecedentes',           section: 'Cap. I -- El problema',          searchFor: ['antecedentes','previos','estudios anteriores'] },
-  { key: 'planteamiento', label: 'Planteamiento',          section: 'Cap. I -- El problema',          searchFor: ['planteamiento','problema','situacion'] },
-  { key: 'formulacion',   label: 'Pregunta de investigacion', section: 'Cap. I -- El problema',       searchFor: ['como','por que','cuales','que relacion','pregunta'] },
-  { key: 'obj_general',   label: 'Objetivo general',       section: 'Cap. I -- El problema',          searchFor: ['objetivo general','determinar','analizar','establecer'] },
-  { key: 'obj_especificos', label: 'Objetivos especificos', section: 'Cap. I -- El problema',         searchFor: ['objetivos especificos','identificar','describir','evaluar'] },
-  { key: 'hipotesis',     label: 'Hipotesis',              section: 'Cap. I -- El problema',          searchFor: ['hipotesis','se presume','se supone','es probable'] },
-  { key: 'variables',     label: 'Variables',              section: 'Cap. I -- El problema',          searchFor: ['variable','independiente','dependiente'] },
-  { key: 'justificacion', label: 'Justificacion',          section: 'Cap. I -- El problema',          searchFor: ['justificacion','importancia','relevancia'] },
-  { key: 'marco_teorico', label: 'Marco teorico',          section: 'Cap. II -- Marco teorico',       searchFor: ['segun','afirma','plantea','teoria','modelo'] },
-  { key: 'metodologia',   label: 'Metodologia',            section: 'Cap. III -- Marco metodologico', searchFor: ['tipo','diseno','metodo','enfoque'] },
-  { key: 'poblacion',     label: 'Poblacion y muestra',    section: 'Cap. III -- Marco metodologico', searchFor: ['poblacion','muestra','sujetos','participantes'] },
-  { key: 'resultados',    label: 'Resultados',             section: 'Cap. IV -- Analisis de resultados', searchFor: ['resultados','datos','tabla','grafico','figura'] },
-  { key: 'conclusiones',  label: 'Conclusiones',           section: 'Conclusiones y recomendaciones', searchFor: ['conclusion','concluye','se determino','se logro'] },
-  { key: 'referencias',   label: 'Referencias',            section: 'Referencias bibliograficas',     searchFor: [] },
-]
+// Audit G-02/C-03 fix (Exhaustiva 31/08/2026, GRAVE): this used to be a
+// single hardcoded list referencing only tipo 0's ('Investigacion
+// cientifica') chapter names -- 'Cap. I -- El problema', 'Cap. II --
+// Marco teorico', etc. TIPOS_TESIS (types/index.ts) gives tipo 1
+// ('Proyecto factible / tecnico') and tipo 2 ('Revision sistematica /
+// documental') their own, differently-named chapters ('Cap. I --
+// Diagnostico de la necesidad', 'Cap. I -- Justificacion y alcance
+// critico', etc.), so for those two tipos NONE of these section-name
+// lookups could ever match -- the progress checklist stayed stuck
+// showing every item incomplete no matter how much the user actually
+// wrote, because it was checking chapter names that don't exist in their
+// thesis. Each tipo now has its own checklist built from its own real
+// TIPOS_TESIS chapter names.
+type ChecklistItem = { key: string, label: string, section: string, searchFor: string[] }
+
+const ACADEMIC_CHECKLIST_BY_TIPO: Record<number, ChecklistItem[]> = {
+  // Tipo 0 -- Investigacion cientifica (original checklist, unchanged)
+  0: [
+    { key: 'antecedentes',  label: 'Antecedentes',           section: 'Cap. I -- El problema',          searchFor: ['antecedentes','previos','estudios anteriores'] },
+    { key: 'planteamiento', label: 'Planteamiento',          section: 'Cap. I -- El problema',          searchFor: ['planteamiento','problema','situacion'] },
+    { key: 'formulacion',   label: 'Pregunta de investigacion', section: 'Cap. I -- El problema',       searchFor: ['como','por que','cuales','que relacion','pregunta'] },
+    { key: 'obj_general',   label: 'Objetivo general',       section: 'Cap. I -- El problema',          searchFor: ['objetivo general','determinar','analizar','establecer'] },
+    { key: 'obj_especificos', label: 'Objetivos especificos', section: 'Cap. I -- El problema',         searchFor: ['objetivos especificos','identificar','describir','evaluar'] },
+    { key: 'hipotesis',     label: 'Hipotesis',              section: 'Cap. I -- El problema',          searchFor: ['hipotesis','se presume','se supone','es probable'] },
+    { key: 'variables',     label: 'Variables',              section: 'Cap. I -- El problema',          searchFor: ['variable','independiente','dependiente'] },
+    { key: 'justificacion', label: 'Justificacion',          section: 'Cap. I -- El problema',          searchFor: ['justificacion','importancia','relevancia'] },
+    { key: 'marco_teorico', label: 'Marco teorico',          section: 'Cap. II -- Marco teorico',       searchFor: ['segun','afirma','plantea','teoria','modelo'] },
+    { key: 'metodologia',   label: 'Metodologia',            section: 'Cap. III -- Marco metodologico', searchFor: ['tipo','diseno','metodo','enfoque'] },
+    { key: 'poblacion',     label: 'Poblacion y muestra',    section: 'Cap. III -- Marco metodologico', searchFor: ['poblacion','muestra','sujetos','participantes'] },
+    { key: 'resultados',    label: 'Resultados',             section: 'Cap. IV -- Analisis de resultados', searchFor: ['resultados','datos','tabla','grafico','figura'] },
+    { key: 'conclusiones',  label: 'Conclusiones',           section: 'Conclusiones y recomendaciones', searchFor: ['conclusion','concluye','se determino','se logro'] },
+    { key: 'referencias',   label: 'Referencias',            section: 'Referencias bibliograficas',     searchFor: [] },
+  ],
+  // Tipo 1 -- Proyecto factible / tecnico
+  1: [
+    { key: 'diagnostico',    label: 'Diagnostico de la necesidad', section: 'Cap. I -- Diagnostico de la necesidad',        searchFor: ['diagnostico','necesidad','problema','carencia'] },
+    { key: 'obj_general',    label: 'Objetivo general',            section: 'Cap. I -- Diagnostico de la necesidad',        searchFor: ['objetivo general','determinar','desarrollar','implementar'] },
+    { key: 'obj_especificos', label: 'Objetivos especificos',      section: 'Cap. I -- Diagnostico de la necesidad',        searchFor: ['objetivos especificos','identificar','disenar','construir'] },
+    { key: 'justificacion',  label: 'Justificacion',               section: 'Cap. I -- Diagnostico de la necesidad',        searchFor: ['justificacion','importancia','relevancia','beneficio'] },
+    { key: 'fundamentacion', label: 'Fundamentacion tecnologica',  section: 'Cap. II -- Fundamentacion tecnologica',        searchFor: ['fundamentacion','tecnologia','herramienta','framework','lenguaje'] },
+    { key: 'diseno',         label: 'Diseno y arquitectura',       section: 'Cap. III -- Diseno y arquitectura',            searchFor: ['diseno','arquitectura','diagrama','modelo'] },
+    { key: 'desarrollo',     label: 'Desarrollo e implementacion', section: 'Cap. IV -- Desarrollo e implementacion',       searchFor: ['desarrollo','implementacion','construccion','codigo'] },
+    { key: 'pruebas',        label: 'Pruebas y factibilidad',      section: 'Cap. V -- Pruebas, evaluacion y factibilidad', searchFor: ['prueba','evaluacion','factibilidad','resultado'] },
+    { key: 'conclusiones',   label: 'Conclusiones',                section: 'Conclusiones y recomendaciones',               searchFor: ['conclusion','concluye','se determino','se logro'] },
+    { key: 'referencias',    label: 'Referencias',                 section: 'Referencias bibliograficas',                   searchFor: [] },
+  ],
+  // Tipo 2 -- Revision sistematica / documental
+  2: [
+    { key: 'justificacion',  label: 'Justificacion y alcance',     section: 'Cap. I -- Justificacion y alcance critico',           searchFor: ['justificacion','alcance','relevancia','importancia'] },
+    { key: 'obj_general',    label: 'Objetivo general',            section: 'Cap. I -- Justificacion y alcance critico',           searchFor: ['objetivo general','analizar','sistematizar','revisar'] },
+    { key: 'metodologia',    label: 'Metodologia de busqueda',     section: 'Cap. II -- Metodologia de busqueda y seleccion',      searchFor: ['busqueda','seleccion','criterios','base de datos','palabras clave'] },
+    { key: 'categorial',     label: 'Desarrollo categorial',       section: 'Cap. III -- Desarrollo categorial / ejes tematicos',  searchFor: ['categoria','eje tematico','clasificacion'] },
+    { key: 'comparativo',    label: 'Analisis comparativo',        section: 'Cap. IV -- Analisis comparativo / sintesis',          searchFor: ['comparacion','sintesis','analisis','contraste'] },
+    { key: 'discusion',      label: 'Discusion teorica',           section: 'Cap. V -- Discusion teorica',                         searchFor: ['discusion','implicacion','teoria'] },
+    { key: 'conclusiones',   label: 'Conclusiones',                section: 'Conclusiones y lineas de investigacion futuras',      searchFor: ['conclusion','concluye','linea futura'] },
+    { key: 'referencias',    label: 'Referencias',                 section: 'Referencias bibliograficas',                          searchFor: [] },
+  ],
+}
 
 function extractText(content: object | null): string {
   if (!content) return ''
@@ -36,10 +77,11 @@ export default function ProgressPanel() {
   if (!project) return null
 
   const tipo = TIPOS_TESIS[project.tipo]
+  const checklist = ACADEMIC_CHECKLIST_BY_TIPO[project.tipo] ?? ACADEMIC_CHECKLIST_BY_TIPO[0]
   const sectionByName = new Map(sections.map(s => [s.name, s]))
 
   // Check each academic element
-  const results = ACADEMIC_CHECKLIST.map(item => {
+  const results = checklist.map(item => {
     const sec  = sections.find(s => s.name.includes(item.section.split(' -- ')[1] ?? item.section))
              ?? sectionByName.get(item.section)
     const text = extractText(sec?.content ?? null)
@@ -106,19 +148,22 @@ export default function ProgressPanel() {
         ))}
       </div>
 
-      {/* Tip */}
-      {pct < 100 && (
-        <div className="bg-brand-800/30 border border-brand-700/20 rounded-xl p-2.5 text-xs text-brand-400">
-          <i className="ti ti-bulb text-gold mr-1" />
-          {pct < 30
-            ? 'Comienza por el Cap. I: define el problema, objetivos e hipotesis.'
-            : pct < 60
-            ? 'Buen avance. Completa la metodologia y el marco teorico.'
-            : pct < 80
-            ? 'Casi listo. Asegurate de tener resultados y conclusiones.'
-            : 'Excelente! Revisa las referencias y los anexos para terminar.'}
-        </div>
-      )}
+      {/* Tip -- Audit G-02/C-03 fix: this used to be four buckets of
+          hardcoded tipo-0 wording ("Completa la metodologia y el marco
+          teorico", etc.), so tipo 1/2 projects got advice about chapters
+          they don't have. Points at the actual next incomplete item from
+          this tipo's own checklist instead. */}
+      {pct < 100 && (() => {
+        const next = results.find(r => !r.done)
+        return (
+          <div className="bg-brand-800/30 border border-brand-700/20 rounded-xl p-2.5 text-xs text-brand-400">
+            <i className="ti ti-bulb text-gold mr-1" />
+            {next
+              ? `Sigue con "${next.label}" en ${next.section.replace('Cap. ', 'Cap.')}.`
+              : 'Revisa los detalles finales para completar tu tesis.'}
+          </div>
+        )
+      })()}
     </div>
   )
 }

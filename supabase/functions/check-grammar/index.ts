@@ -54,6 +54,32 @@ export default {
 
     const text = typeof payload?.text === 'string' ? payload.text : ''
     const language = typeof payload?.language === 'string' ? payload.language : 'es'
+    const projectId = typeof payload?.projectId === 'string' ? payload.projectId : ''
+
+    // Audit G-06 fix (Exhaustiva 31/08/2026, GRAVE): this endpoint checked
+    // that the CALLER was authenticated, but never that the text they were
+    // sending belonged to a project of theirs -- any logged-in user could
+    // call it with arbitrary text as a general-purpose LanguageTool proxy,
+    // with nothing here to tell a real thesis section apart from unrelated
+    // text. projectId is now required, and ownership is checked the same
+    // way RLS already enforces it everywhere else in this app: ctx.supabase
+    // carries the caller's own JWT (not a service-role key), so a SELECT
+    // against `projects` is automatically filtered by the "projects_all_own"
+    // policy -- if the row comes back empty, either the project doesn't
+    // exist or it isn't the caller's, and either way the request is
+    // rejected before it ever reaches LanguageTool.
+    if (!projectId) {
+      return Response.json({ error: 'projectId es requerido.' }, { status: 400 })
+    }
+    const { data: ownedProject, error: ownershipError } = await ctx.supabase
+      .from('projects').select('id').eq('id', projectId).maybeSingle()
+    if (ownershipError) {
+      console.error('Project ownership check error:', ownershipError)
+      return Response.json({ error: 'No se pudo verificar el proyecto.' }, { status: 500 })
+    }
+    if (!ownedProject) {
+      return Response.json({ error: 'Proyecto no encontrado o no autorizado.' }, { status: 403 })
+    }
 
     if (!text || text.trim().length < 10) {
       return Response.json({ matches: [] })

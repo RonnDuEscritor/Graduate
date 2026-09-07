@@ -52,15 +52,37 @@ export function hasRealTiptapContent(doc: TiptapNode | null | undefined): boolea
 // Depth-first walk collecting every node of the given types, in real
 // document order (so a table appearing after a figure on the same page
 // stays after it in the result -- this is NOT two separate passes).
-function collectNodesByType(doc: TiptapNode | null | undefined, types: string[], out: TiptapNode[]) {
-  if (!doc?.content) return
-  doc.content.forEach(n => {
-    if (types.includes(n.type)) out.push(n)
-    collectNodesByType(n, types, out)
-  })
+// Also tracks how many words of real text precede each match within this
+// same content tree, so callers can place the item somewhere inside its
+// section's estimated page range instead of always the section's first
+// page (see interpolatedPageLabel below / audit P1 5.5 fix).
+function collectNodesWithOffset(doc: TiptapNode | null | undefined, types: string[]): { node: TiptapNode, wordsBefore: number }[] {
+  const out: { node: TiptapNode, wordsBefore: number }[] = []
+  let words = 0
+  const walk = (n: TiptapNode) => {
+    if (types.includes(n.type)) out.push({ node: n, wordsBefore: words })
+    if (n.type === 'text' && n.text) {
+      const t = n.text.trim()
+      if (t) words += t.split(/\s+/).filter(Boolean).length
+    }
+    n.content?.forEach(walk)
+  }
+  doc?.content?.forEach(walk)
+  return out
 }
 
-export interface CaptionedItem { kind: 'table' | 'image'; number: number; sectionName: string }
+export interface CaptionedItem {
+  kind: 'table' | 'image'
+  number: number
+  sectionName: string
+  // Audit P1 5.5 fix (files4 31/08/2026, GRAVE): how far into the section
+  // (by word count) this item sits, and the section's total word count --
+  // together these let the caller interpolate a page WITHIN the section's
+  // estimated range (see interpolatedPageLabel) instead of stamping every
+  // table/figure in a multi-page section with that section's first page.
+  wordsBefore: number
+  sectionWordCount: number
+}
 
 // Audit P0 4.2 fix: 'Indice de tablas', 'Indice de figuras', 'Indice de
 // tablas y figuras' and 'Indice de cuadros comparativos' used to all call
@@ -80,9 +102,11 @@ export function collectCaptionedItems(
   const items: CaptionedItem[] = []
   let counter = 0
   orderedSections.forEach(({ name, content }) => {
-    const found: TiptapNode[] = []
-    collectNodesByType(content, [nodeType], found)
-    found.forEach(() => { counter++; items.push({ kind: nodeType, number: counter, sectionName: name }) })
+    const sectionWordCount = countWords(content)
+    collectNodesWithOffset(content, [nodeType]).forEach(({ wordsBefore }) => {
+      counter++
+      items.push({ kind: nodeType, number: counter, sectionName: name, wordsBefore, sectionWordCount })
+    })
   })
   return items
 }
@@ -98,14 +122,36 @@ export function collectCaptionedItemsMixed(
   const items: CaptionedItem[] = []
   let tableCount = 0, imageCount = 0
   orderedSections.forEach(({ name, content }) => {
-    const found: TiptapNode[] = []
-    collectNodesByType(content, ['table', 'image'], found)
-    found.forEach(n => {
-      if (n.type === 'table') { tableCount++; items.push({ kind: 'table', number: tableCount, sectionName: name }) }
-      else { imageCount++; items.push({ kind: 'image', number: imageCount, sectionName: name }) }
+    const sectionWordCount = countWords(content)
+    collectNodesWithOffset(content, ['table', 'image']).forEach(({ node, wordsBefore }) => {
+      if (node.type === 'table') { tableCount++; items.push({ kind: 'table', number: tableCount, sectionName: name, wordsBefore, sectionWordCount }) }
+      else { imageCount++; items.push({ kind: 'image', number: imageCount, sectionName: name, wordsBefore, sectionWordCount }) }
     })
   })
   return items
+}
+
+// Audit P1 5.5 fix (files4 31/08/2026, GRAVE): collectCaptionedItems used
+// to be paired with a page label looked up purely by sectionName, so
+// three tables in the same (possibly multi-page) section all showed the
+// exact same page range -- wrong for an academic index even by this
+// project's own "estimate, don't fake precision" standard (see
+// estimatePageRanges above). This still can't know the real physical
+// page (that needs the DOM/render-time measurement work tracked
+// separately), but it CAN place the item proportionally within its
+// section's already-estimated range based on how much of the section's
+// text comes before it -- strictly more informative than repeating the
+// section's start page for every item inside it, and still expressed
+// through the same isRoman-aware toRoman() the rest of the app's page
+// labels use.
+export function interpolatedPageLabel(range: PageRange, isRoman: boolean, wordsBefore: number, sectionWordCount: number): string {
+  const span = range.end - range.start
+  let page = range.start
+  if (span > 0 && sectionWordCount > 0) {
+    const fraction = Math.min(0.999, Math.max(0, wordsBefore / sectionWordCount))
+    page = Math.min(range.end, range.start + Math.floor(fraction * (span + 1)))
+  }
+  return isRoman ? toRoman(page) : String(page)
 }
 
 // -- REFERENCE FORMATTERS -----------------------------------------

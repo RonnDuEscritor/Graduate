@@ -9,6 +9,9 @@ import type { AppState, PBProject, PBSection, PBReference, PBCitation, RevisionI
 const pendingTimers  = new Map<string, ReturnType<typeof setTimeout>>()
 const pendingPayloads = new Map<string, { content: TiptapDoc, wordCount: number }>()
 
+// Audit P1 5.10 fix (files4 31/08/2026, GRAVE): see setNorma below.
+let normaUpdateTimer: ReturnType<typeof setTimeout> | null = null
+
 function flushSection(sectionId: string, set: (partial: Partial<AppState>) => void): Promise<void> {
   const payload = pendingPayloads.get(sectionId)
   pendingTimers.delete(sectionId)
@@ -57,7 +60,11 @@ interface Actions {
   // Section save -- debounced per-section, goes to Supabase
   saveSectionContent: (sectionId: string, content: TiptapDoc, wordCount: number) => void
   flushPendingSaves:  () => Promise<void>
-  syncSectionCitations: (sectionId: string, refIdsInOrder: string[]) => void
+  // Audit P1 5.1 fix (files4 31/08/2026, GRAVE): orderIndexHint lets the
+  // caller supply the section's order_index directly instead of relying
+  // on a sections.find() lookup that can miss a freshly created virtual
+  // section (see the fix comment on the implementation below).
+  syncSectionCitations: (sectionId: string, refIdsInOrder: string[], orderIndexHint?: number) => void
 
   // References
   upsertReference: (r: PBReference) => void
@@ -93,11 +100,28 @@ export const useStore = create<AppState & Actions>((set, get) => ({
   setNorma: (norma) => {
     set({ norma })
     const { project } = get()
-    if (project) {
-      supabase.from('projects').update({ norma }).eq('id', project.id).then(({ error }) => {
+    if (!project) return
+    // Audit P1 5.10 fix (files4 31/08/2026, GRAVE): this used to fire an
+    // UPDATE to Supabase immediately on every call, with no sequencing.
+    // If the user changed norma rapidly (e.g. APA -> IEEE -> MLA), each
+    // call started its own independent network request, and nothing
+    // guaranteed those requests would ARRIVE at Supabase in the same
+    // order they were sent -- if the response for an earlier selection
+    // landed after the response for the final one, the database was left
+    // with a stale norma that no longer matched what the user had
+    // actually selected, with no error or indication anything went
+    // wrong. Debouncing the network write (same pattern as the editor's
+    // own per-section autosave above) means a rapid burst of clicks only
+    // ever sends ONE request, for whichever norma the user settled on --
+    // there is nothing left to race.
+    if (normaUpdateTimer) clearTimeout(normaUpdateTimer)
+    const projectId = project.id
+    normaUpdateTimer = setTimeout(() => {
+      normaUpdateTimer = null
+      supabase.from('projects').update({ norma }).eq('id', projectId).then(({ error }) => {
         if (error) console.error(error)
       })
-    }
+    }, 400)
   },
 
   // ── SAVE SECTION (debounced 1.5s -- PER SECTION, not global) ─
@@ -146,11 +170,25 @@ export const useStore = create<AppState & Actions>((set, get) => ({
   // and the database never finds out). Called from SectionEditor on every
   // save, but only fires network calls when the extracted reference list
   // actually differs from what's already known.
-  syncSectionCitations: (sectionId, refIdsInOrder) => {
+  syncSectionCitations: (sectionId, refIdsInOrder, orderIndexHint) => {
     const { project, sections, citations } = get()
     if (!project) return
-    const section = sections.find(s => s.id === sectionId)
-    const sectionOrderIndex = section?.order_index ?? 9999
+    // Audit P1 5.1 fix (files4 31/08/2026, GRAVE): this used to always
+    // look up the section via `sections.find(s => s.id === sectionId)` to
+    // get its order_index, falling back to `?? 9999` when not found. A
+    // section created through SectionEditor's virtual-section fallback
+    // (ensureSectionId) updates pbIdRef.current locally but is never
+    // pushed into the store's `sections` array, so this lookup could miss
+    // it -- inflating order_of_appearance to roughly 9999*10000+position,
+    // sorting that section's citations far outside their real
+    // reading-order position (wrong Vancouver/IEEE numbering for that
+    // section and everything meant to come after it). SectionEditor
+    // already receives orderIndex as a prop (from EditorPage's own
+    // TIPOS_TESIS-derived layout) and now passes it straight through as
+    // orderIndexHint, which is always correct even before the section
+    // exists in the store's array; the sections.find lookup remains only
+    // as a fallback for any future caller that doesn't have it handy.
+    const sectionOrderIndex = orderIndexHint ?? sections.find(s => s.id === sectionId)?.order_index ?? 9999
 
     const existing = citations.filter(c => c.section === sectionId)
     const existingByRef = new Map(existing.map(c => [c.reference, c]))

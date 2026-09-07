@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useStore } from '@/store'
 import { TIPOS_TESIS, NORMAS } from '@/types'
-import { formatRef, escapeHtml, estimatePageRanges, hasRealTiptapContent, collectCaptionedItems, collectCaptionedItemsMixed } from '@/lib/utils'
-import type { CaptionedItem } from '@/lib/utils'
+import { formatRef, escapeHtml, estimatePageRanges, hasRealTiptapContent, collectCaptionedItems, collectCaptionedItemsMixed, interpolatedPageLabel } from '@/lib/utils'
+import type { CaptionedItem, PageRange } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import type { PBSection, TiptapNode, NormaType } from '@/types'
 
@@ -22,6 +22,13 @@ const AUTO_PORTADA = ['Portada']
 
 interface SectionIndexModel {
   pageLabelByName: Map<string, string>
+  // Audit P1 5.5 fix (files4 31/08/2026, GRAVE): raw {start,end} range (+
+  // whether it's roman) per section, kept alongside the formatted label
+  // above so a caption item can be placed proportionally within its
+  // section's range (interpolatedPageLabel in lib/utils.ts) instead of
+  // every table/figure in that section sharing the section's single
+  // formatted label.
+  pageRangeByName: Map<string, { range: PageRange, isRoman: boolean }>
   orderedContentSections: { name: string, content: TiptapNode | null | undefined }[]
   portadaName: string | null
 }
@@ -35,13 +42,18 @@ function buildSectionIndexModel(t: typeof TIPOS_TESIS[0], secMap: Map<string, PB
   // index section appearing early (preliminary fase) can already look up
   // the label of a table/figure that lives in a later fase.
   const pageLabelByName = new Map<string, string>()
+  const pageRangeByName = new Map<string, { range: PageRange, isRoman: boolean }>()
   let arCursor = 1, romCursor = 1
   t.fases.forEach(fase => {
     const items  = fase.items.map(name => ({ name, wordCount: secMap.get(name)?.word_count ?? 0 }))
     const ranges = estimatePageRanges(items, norma, fase.isRoman, fase.isRoman ? romCursor : arCursor)
     const last   = [...ranges.values()].pop()
     if (last) { if (fase.isRoman) romCursor = last.end + 1; else arCursor = last.end + 1 }
-    items.forEach(({ name }) => { pageLabelByName.set(name, ranges.get(name)?.label ?? '') })
+    items.forEach(({ name }) => {
+      const r = ranges.get(name)
+      pageLabelByName.set(name, r?.label ?? '')
+      if (r) pageRangeByName.set(name, { range: r, isRoman: fase.isRoman })
+    })
   })
 
   // Real document order, content-bearing sections only (no auto indices,
@@ -58,7 +70,19 @@ function buildSectionIndexModel(t: typeof TIPOS_TESIS[0], secMap: Map<string, PB
     orderedContentSections.push({ name, content: secMap.get(name)?.content as unknown as TiptapNode | undefined })
   }))
 
-  return { pageLabelByName, orderedContentSections, portadaName }
+  return { pageLabelByName, pageRangeByName, orderedContentSections, portadaName }
+}
+
+// Audit P1 5.5 fix (files4 31/08/2026, GRAVE): resolves a captioned
+// item's page label by interpolating within its section's range (see
+// interpolatedPageLabel) instead of just repeating the section's whole
+// label for every item inside it. Falls back to the plain section label
+// if the range lookup ever misses (defensive; shouldn't happen since both
+// maps are built from the same pass).
+function captionedItemPageLabel(it: CaptionedItem, model: SectionIndexModel): string {
+  const r = model.pageRangeByName.get(it.sectionName)
+  if (!r) return model.pageLabelByName.get(it.sectionName) ?? ''
+  return interpolatedPageLabel(r.range, r.isRoman, it.wordsBefore, it.sectionWordCount)
 }
 
 // Given an AUTO_IDX section name, returns which caption list it needs (or
@@ -156,14 +180,15 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
     // preliminary page. See buildSectionIndexModel() above for the shared
     // (PDF+DOCX) computation of which section is the portada, the page
     // labels, and the real table/figure inventory for the P0 4.2 fix.
-    const { pageLabelByName, orderedContentSections, portadaName } = buildSectionIndexModel(t, secMap, norma)
+    const sectionIndexModel = buildSectionIndexModel(t, secMap, norma)
+    const { pageLabelByName, orderedContentSections, portadaName } = sectionIndexModel
 
     const buildCaptionIndexHTML = (items: CaptionedItem[], tableLabel: string) => {
       if (items.length === 0) return '<p style="color:#aaa;font-style:italic">No se encontraron elementos en el documento.</p>'
       let html = '<div style="font-size:11pt">'
       items.forEach(it => {
         const label = it.kind === 'table' ? tableLabel : 'Figura'
-        const pg = pageLabelByName.get(it.sectionName) ?? ''
+        const pg = captionedItemPageLabel(it, sectionIndexModel)
         html += `<div style="display:flex;justify-content:space-between;padding:3pt 0;border-bottom:.5pt dotted #eee"><span>${label} ${it.number}</span><span style="color:#7D1A31;font-weight:500">${pg}</span></div>`
       })
       return html + '</div>'
@@ -171,7 +196,7 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
 
     const autoIdxHTML = (name: string): string => {
       const captioned = captionIndexFor(name, orderedContentSections)
-      return captioned ? buildCaptionIndexHTML(captioned.items, captioned.tableLabel) : buildTOCHTML(t, sections)
+      return captioned ? buildCaptionIndexHTML(captioned.items, captioned.tableLabel) : buildGeneralTOC(t, sections)
     }
 
     let bodyHTML = ''
@@ -236,7 +261,24 @@ ${bodyHTML}${bibHTML}
 </body></html>`
   }
 
-  const buildTOCHTML = (t: typeof TIPOS_TESIS[0], secs: PBSection[]) => {
+  // Audit P0 4.1 fix (files4 31/08/2026, CRITICO): this used to list
+  // EVERY item from EVERY fase -- portada, the general index itself,
+  // every specific index (tablas/figuras/cuadros), every preliminary and
+  // body item -- with no exclusion at all. A reader opening "Indice
+  // general" would find "Indice general" listed inside itself, plus
+  // "Portada oficial" and "Indice de tablas" as if they were ordinary
+  // chapters. The DOCX exporter doesn't have this problem: its preliminary
+  // titles (see generate-docx/index.ts, 'PreliminaryTitle' style) never
+  // use Heading 1-3, so Word's real TableOfContents field already skips
+  // them structurally. This gives the PDF's HTML-built index the
+  // equivalent explicit exclusion instead of "everything in TIPOS_TESIS":
+  // portada (rendered separately as the cover) and every auto-generated
+  // index (including 'Indice general' itself) are left out; every other
+  // preliminary item (aprobacion, dedicatoria, resumen, palabras clave)
+  // and every body/final item (introduccion, capitulos, conclusiones,
+  // referencias, anexos) are real, editable sections and belong in a
+  // table of contents, so they stay.
+  const buildGeneralTOC = (t: typeof TIPOS_TESIS[0], secs: PBSection[]) => {
     const secByName = new Map(secs.map(s => [s.name, s]))
     let html = '<div style="font-size:11pt">'
     let arCursor = 1, romCursor = 1
@@ -246,8 +288,12 @@ ${bodyHTML}${bibHTML}
       const last   = [...ranges.values()].pop()
       if (last) { if (f.isRoman) romCursor = last.end + 1; else arCursor = last.end + 1 }
 
+      const visibleItems = items.filter(({ name }) =>
+        !AUTO_PORTADA.some(x => name.startsWith(x)) && !AUTO_IDX.some(x => name.startsWith(x)))
+      if (visibleItems.length === 0) return
+
       html += `<div style="font-size:8pt;text-transform:uppercase;letter-spacing:.1em;color:#A8546A;margin:12pt 0 4pt;border-bottom:.5pt solid #ddd;padding-bottom:3pt">${f.fase}</div>`
-      items.forEach(({ name }) => {
+      visibleItems.forEach(({ name }) => {
         const pg = ranges.get(name)?.label ?? ''
         html += `<div style="display:flex;justify-content:space-between;padding:3pt 0;border-bottom:.5pt dotted #eee"><span>${name}</span><span style="color:#7D1A31;font-weight:500">${pg}</span></div>`
       })
@@ -291,7 +337,8 @@ ${bodyHTML}${bibHTML}
     // Shared with buildHTMLDoc (see buildSectionIndexModel above) so the
     // PDF and DOCX exports can never disagree on which section is the
     // portada or what the real table/figure inventory is.
-    const { pageLabelByName, orderedContentSections } = buildSectionIndexModel(t, secMap, norma)
+    const sectionIndexModel = buildSectionIndexModel(t, secMap, norma)
+    const { orderedContentSections } = sectionIndexModel
 
     // Same duplicate-heading bug as buildHTMLDoc above (see comment there):
     // 'Referencias bibliograficas' is a normal TIPOS_TESIS item whose own
@@ -338,7 +385,7 @@ ${bodyHTML}${bibHTML}
         isPortada: AUTO_PORTADA.some(x => name.startsWith(x)),
         captionIndex: captionSpec ? {
           tableLabel: captionSpec.tableLabel,
-          items: captionSpec.items.map(it => ({ kind: it.kind, number: it.number, pageLabel: pageLabelByName.get(it.sectionName) ?? '' })),
+          items: captionSpec.items.map(it => ({ kind: it.kind, number: it.number, pageLabel: captionedItemPageLabel(it, sectionIndexModel) })),
         } : null,
         content: secMap.get(name)?.content ?? null,
       }

@@ -667,3 +667,304 @@ en este pase:
 - Menores: alert()/confirm() nativos, ESLint, control de tamano/
   compresion de imagenes en el frontend, reduccion de `any` en
   `generate-docx`, interfaz completa de versiones.
+
+## Noveno pase -- Auditoria "Graduate-main-CORREGIDO" (files4, 31/08/2026)
+
+Esta auditoria confirmo las nueve correcciones del octavo pase (doble
+portada, separacion romano/arabigo, PreliminaryTitle fuera del TOC,
+referencias sin duplicar, indices especificos correctos, lock de
+creacion, siete normas, integridad de citas, throttle atomico) sin
+regresiones, y aporto una calificacion global de 8.9/10 con veredicto
+"apta para preproduccion/beta, no todavia version final". Encontro dos
+hallazgos P0 nuevos y confirmables en el codigo (no arquitectonicos) mas
+dos P1 tambien confirmables; el resto de su lista P0 (exportacion
+reconstruida desde la DB, paginacion pixel-exacta) y P1 (captions reales,
+referencias cruzadas, tests, optimistic locking, retry/backoff, strict
+mode) repite exactamente lo que ya viene quedando pendiente y documentado
+desde el septimo/octavo pase por los mismos motivos de arquitectura --
+ver la lista de pendientes debajo, no se repiten aqui.
+
+### P0
+
+37. [P0 4.1, CRITICO] El indice general del PDF (entonces `buildTOCHTML`,
+    ahora `buildGeneralTOC`) listaba TODOS los items de TODAS las fases
+    sin ninguna exclusion -- portada, el propio "Indice general" listado
+    dentro de si mismo, "Indice de tablas", "Indice de figuras", etc.,
+    todos aparecian como si fueran capitulos normales. El DOCX no tenia
+    este problema (su campo TOC real de Word es heading-based, y desde el
+    octavo pase los titulos preliminares usan el estilo `PreliminaryTitle`
+    en vez de Heading 1-3, asi que Word ya los excluye estructuralmente).
+    `buildGeneralTOC()` ahora excluye explicitamente `AUTO_PORTADA` y
+    `AUTO_IDX` (que incluye al propio "Indice general") de la lista que
+    construye, dejando solo los items preliminares editables reales
+    (aprobacion, dedicatoria, resumen, palabras clave) y los items de
+    cuerpo/fase final (capitulos, conclusiones, referencias, anexos) -- lo
+    que corresponde a un indice academico real.
+
+### P1
+
+38. [P1 5.1, GRAVE] `syncSectionCitations()` calculaba
+    `sectionOrderIndex` con `sections.find(s => s.id === sectionId)?.
+    order_index ?? 9999`. Una seccion creada por el fallback de
+    `SectionEditor` (`ensureSectionId`) actualiza `pbIdRef.current`
+    localmente pero nunca se agrega al array `sections` del store, asi
+    que esa busqueda podia fallar y caer al `9999` de respaldo --
+    `order_of_appearance` terminaba en ~9999*10000+posicion, muy lejos de
+    su posicion real de lectura, descolocando la numeracion Vancouver/IEEE
+    de las citas de esa seccion. `SectionEditor` ya recibe `orderIndex`
+    como prop (viene de `EditorPage`, siempre correcto incluso antes de
+    que la seccion exista en el store); ahora lo pasa directo a
+    `syncSectionCitations(id, refIds, orderIndex)` como
+    `orderIndexHint`, que tiene prioridad sobre la busqueda en
+    `sections`, la cual queda solo como respaldo para otros llamadores
+    futuros.
+
+39. [P1 5.10, GRAVE] `setNorma()` disparaba un UPDATE a Supabase de
+    inmediato en cada llamada, sin ningun tipo de secuenciacion. Si el
+    usuario cambiaba de norma rapido (APA -> IEEE -> MLA), cada llamada
+    iniciaba su propia peticion de red independiente, y nada garantizaba
+    que las respuestas llegaran en el mismo orden en que se enviaron -- si
+    la respuesta de una seleccion vieja llegaba despues que la de la
+    final, la base de datos quedaba con una norma desactualizada
+    respecto a lo que el usuario realmente eligio, sin ningun error
+    visible. Se agrego un debounce de 400ms a la escritura de red (mismo
+    patron que el autoguardado por seccion): una rafaga de clics rapidos
+    ahora solo envia UNA peticion, la de la norma en la que el usuario se
+    quedo -- no queda nada que competir en orden de llegada.
+
+40. [P1 5.5, GRAVE] `collectCaptionedItems`/`collectCaptionedItemsMixed`
+    asociaban cada tabla/figura encontrada con el label de pagina
+    COMPLETO de su seccion -- si una seccion de varias paginas tenia
+    Tabla 1, Tabla 2 y Tabla 3, las tres mostraban el mismo rango
+    ("10-13"), en vez de una pagina mas especifica cada una. Sin
+    arquitectura de medicion de DOM (fuera de alcance, ver pendientes),
+    se agrego una interpolacion honesta: cada item ahora sabe cuantas
+    palabras de la seccion lo preceden (`wordsBefore`) y el total de
+    palabras de esa seccion (`sectionWordCount`); `interpolatedPageLabel()`
+    nuevo en `lib/utils.ts` ubica el item proporcionalmente dentro del
+    rango ya estimado de su seccion (ej. una tabla a mitad del texto de
+    una seccion 10-13 ahora marca "12", no "10-13" para las tres). Sigue
+    siendo una estimacion (no una pagina fisica real), pero ya no repite
+    ciegamente el mismo numero para varios elementos distintos. Verificado
+    con una prueba aislada de la formula (valores de entrada/salida
+    esperados coinciden) ademas de la verificacion de build completa.
+
+Build verificado de nuevo: npm ci + tsc --noEmit + npm run build, limpio.
+
+## Pendiente tras este pase (confirmado, requiere sesion dedicada o
+arquitectura)
+
+De la lista P0/P1 de la auditoria "files4" (31/08/2026), quedan sin tocar
+en este pase, por los mismos motivos que en los pases anteriores (ver
+arriba):
+
+- P0 4.2 (exportacion DOCX/PDF reconstruida server-side desde la base de
+  datos en vez de confiar en el payload del cliente): requiere portar el
+  motor completo de `formatRef()` a la Edge Function, sin loop de
+  build/test local en este entorno.
+- P0 4.3 (paginacion 100% real, fisica): arquitectura de medicion de DOM
+  o motor PDF server-side (Chromium/Playwright, como sugiere la propia
+  auditoria en su Fase 4). La auditoria misma recomienda NO invertir en
+  falsa precision en el editor y concentrar el esfuerzo en el motor de
+  exportacion -- el item 40 de este pase (interpolacion por item) ya va
+  en esa direccion sin requerir la arquitectura completa.
+- P1 (captions reales -- `TableCaption`/`FigureCaption` con numero,
+  titulo, nota y fuente; referencias cruzadas tipo "ver Tabla 4"; nodo o
+  atributo especifico para diferenciar cuadro comparativo de tabla
+  estadistica): funcionalidad nueva, no un parche.
+- P1 (optimistic locking/revision entre pestanas o dispositivos,
+  retry/backoff con cola robusta y estado offline, validador academico
+  estructural con matriz de trazabilidad, suite de tests unitarios/E2E,
+  `strict: true` progresivo, PDF server-side).
+- P2: alert()/confirm() nativos, ESLint en CI, auditoria de dependencias
+  (npm audit/Dependabot), historial de versiones completo (listar/
+  comparar/restaurar), BibTeX/RIS/CSL/ISO 690, compresion de imagenes,
+  limpieza de drafts locales huerfanos al eliminar un proyecto,
+  projectId explicito en check-grammar.
+
+## Decimo pase -- Auditoria "Exhaustiva" (Graduate-main, 31/08/2026)
+
+Esta auditoria fue mas amplia que las anteriores: 5 hallazgos CRITICO (C-01
+a C-05) y 14 GRAVE (G-01 a G-14), calificacion 82/100 ("apta para
+preproduccion/beta"). Antes de tocar codigo se verifico contra el arbol de
+archivos real de este proyecto (el que se ha venido corrigiendo desde el
+sexto pase) cuales hallazgos correspondian a codigo que existe aqui, y
+cuales correspondian a archivos que -- igual que `pb.ts` (ver conversacion
+del 31/08) -- viven en el repo de GitHub del usuario pero nunca fueron
+parte de ningun zip subido para su correccion:
+
+- **No existen en este arbol** (por lo tanto no se pudieron corregir aqui,
+  se le indico al usuario tratarlos igual que `pb.ts`): C-02 (arquitectura
+  PocketBase / `render.yaml` / `tep/backend/`), G-11 (`.env.example` --
+  de hecho SI existe y esta correcto en este arbol), G-12 (`useAI.ts`,
+  `AIPanel.tsx`, `VITE_ANTHROPIC_KEY`), M-04/M-05 (`TIPOS_TESIS_EXTENDED`
+  y otro codigo muerto senalado). Confirmado con `grep -rl` sobre todo el
+  arbol: cero coincidencias.
+
+De los hallazgos que SI aplican a este codigo, se corrigieron los que son
+parches acotados y verificables sin inventar arquitectura nueva:
+
+### Verificacion con PostgreSQL real
+
+Por primera vez en estos pases se instalo PostgreSQL 16 localmente para
+probar las migraciones SQL contra una base de datos de verdad en vez de
+solo revisar la sintaxis a ojo -- lo cual encontro un bug real en mi
+propio primer intento de esta migracion (ver item G-04 abajo: el operador
+jsonpath `$.**` de Postgres duplica coincidencias). Las 9 migraciones
+anteriores tambien se corrieron en secuencia completa contra Postgres
+limpio para confirmar que ninguna quedo rota por los pases anteriores.
+
+### Criticos (parcial, ver justificacion de alcance en cada uno)
+
+41. [C-01, CRITICO -- parcial] generate-docx confiaba completamente en
+    `payload.project` (title/author/institution/year/norma) para el
+    contenido de la portada y el encabezado del DOCX exportado -- un
+    llamador autenticado podia exportar un documento cuya portada dijera
+    cualquier cosa, sin relacion con lo guardado realmente en su
+    proyecto. Ahora el handler HTTP hace `select('id, title, author,
+    institution, year, norma')` sobre `projects` (ya filtrado por RLS a
+    traves de `ctx.supabase`) y usa esos valores para sobreescribir
+    `payload.project`, sin importar que haya mandado el cliente.
+    Reconstruir tambien el CONTENIDO (secciones, citas, bibliografia)
+    100% desde la base de datos -- en vez del payload del cliente --
+    sigue fuera de alcance: implica portar el motor completo de
+    `formatRef()` (~150 lineas) a esta funcion, y este entorno no tiene
+    acceso de red a un proyecto Supabase real para probar esas consultas
+    en vivo antes de desplegarlas -- ver item 9 del septimo pase, mismo
+    motivo, todavia vigente.
+
+42. [C-03/G-02, CRITICO/GRAVE] `ProgressPanel.tsx` tenia una sola lista
+    `ACADEMIC_CHECKLIST` codificada con los nombres de capitulo del tipo 0
+    unicamente ('Cap. I -- El problema', 'Cap. II -- Marco teorico', ...).
+    TIPOS_TESIS (types/index.ts) le da al tipo 1 ('Proyecto factible /
+    tecnico') y al tipo 2 ('Revision sistematica / documental') sus
+    propios capitulos con nombres distintos ('Cap. I -- Diagnostico de la
+    necesidad', 'Cap. I -- Justificacion y alcance critico', etc.) -- para
+    esos dos tipos NINGUN item de la checklist podia encontrar su seccion
+    real, asi que el progreso quedaba trabado mostrando todo incompleto
+    sin importar cuanto escribiera el usuario. Se agrego
+    `ACADEMIC_CHECKLIST_BY_TIPO`, una checklist propia por tipo con los
+    nombres de capitulo reales de cada uno. De paso, el consejo de texto
+    al final del panel (tambien codificado con vocabulario del tipo 0,
+    "completa la metodologia y el marco teorico") ahora senala
+    dinamicamente el proximo item real de la checklist en vez de un texto
+    fijo.
+
+### Graves
+
+43. [G-04, GRAVE] `sections.word_count` era lo que el cliente mandara
+    junto al contenido en el mismo UPDATE, sin nada que lo recalculara
+    server-side -- y `projects.word_count` (usado para el progreso y las
+    paginas estimadas) es solo la SUMA de esos valores, asi que un valor
+    mentiroso se propagaba directo a las estimaciones de pagina y
+    progreso. Nueva migracion `0009_word_count_and_checks.sql`:
+    `count_tiptap_words()` recorre el JSON de Tiptap recursivamente
+    (mismo algoritmo que `countWords()` del frontend) y un trigger
+    `before insert or update of content` en `sections` recalcula
+    `word_count` siempre, ignorando lo que mande el cliente. Verificado
+    de punta a punta contra Postgres real: se creo un proyecto via el RPC
+    real, se guardo una seccion con `word_count: 99999` (mentira) junto a
+    contenido real de 5 palabras, y el trigger la corrigio a 5; tambien se
+    probo con listas anidadas, blockquotes, texto con negrita/cursiva,
+    contenido vacio y null.
+
+    Nota tecnica: el primer intento de esta funcion uso el operador
+    recursivo de jsonpath de Postgres (`$.**.text`), que resulto duplicar
+    cada coincidencia (una seccion de 12 palabras se contaba como 24) --
+    un problema real de ese operador, no hipotetico, que solo goteo al
+    probar contra Postgres de verdad. Se reemplazo por una funcion
+    PL/pgSQL recursiva explicita que visita cada nodo una sola vez.
+
+44. [G-03, GRAVE] `create_project_with_sections()` valida que `p_tipo` sea
+    0, 1 o 2, pero esa validacion solo cubre el RPC -- la politica RLS
+    "projects_all_own" permite que el dueño escriba la fila `projects`
+    directamente (necesario para renombrar el proyecto o cambiar de
+    norma), y nada a nivel de columna impedia mandar cualquier otro
+    smallint ahi. `TIPOS_TESIS[tipo]` es un arreglo de longitud fija; un
+    valor fuera de rango resuelve a `undefined` y rompe el editor, la
+    exportacion y el panel de progreso en cualquier lugar que lea
+    `TIPOS_TESIS[project.tipo]`. Se agrego `projects_tipo_check CHECK
+    (tipo in (0,1,2))` en la misma migracion 0009. Probado contra
+    Postgres real: `UPDATE projects SET tipo = 7` se rechaza con el error
+    de constraint esperado.
+
+45. [G-06, GRAVE] `check-grammar` verificaba que el llamador estuviera
+    autenticado, pero nunca a que proyecto pertenecia el texto que
+    mandaba -- cualquier usuario logueado podia usarlo como proxy general
+    hacia LanguageTool con texto arbitrario, sin relacion con sus propios
+    proyectos. `projectId` ahora es requerido en el payload y se verifica
+    contra `projects` a traves de `ctx.supabase` (que ya trae el JWT del
+    llamador, asi que la politica RLS "projects_all_own" filtra sola --
+    si la fila no vuelve, el proyecto no existe o no es del llamador, y
+    se rechaza antes de tocar LanguageTool). `useLanguageTool.ts` y los
+    dos call-sites en `SectionEditor.tsx` (autoguardado + "Revisar ahora")
+    ahora mandan `projectId`.
+
+46. [G-13, GRAVE] `dataUriToImageRun()` forzaba TODA imagen insertada a
+    `{ width: 420, height: 280 }` sin mirar sus dimensiones reales --
+    cualquier imagen que no fuera cercana a esa proporcion 1.5:1 salia
+    visiblemente deformada en el DOCX exportado (una captura ancha
+    aplastada, una foto vertical estirada). Se agregaron parsers manuales
+    de encabezado para los 4 formatos que ya acepta esta funcion (PNG,
+    JPEG, GIF, WEBP -- sin libreria externa, este archivo es
+    autocontenido a proposito) que leen el ancho/alto real de los bytes
+    de la imagen, y la imagen se escala para caber en una caja maxima de
+    420x420 preservando su proporcion real, sin agrandar nunca mas alla
+    de su tamano original. Verificado generando 5 imagenes reales con
+    Pillow (ancha 800x200, alta 200x600, cuadrada 300x300, pequena
+    150x100, grande cuadrada 1000x1000), confirmando que
+    `getImageDimensions()` lee las dimensiones exactas de cada formato, y
+    renderizando el DOCX resultante a PDF: la ancha se ve ancha, la alta
+    se ve alta, la pequena no se agranda, la grande se reduce mantenimiento
+    su forma cuadrada -- ninguna sale deformada.
+
+### Honestidad de etiquetado (C-04/C-05, parcial)
+
+47. Reescribir el motor de citas completo (C-04/G-09 -- soporte real de
+    multiples autores, DOI, autores corporativos, capitulos por norma) y
+    lograr paginacion fisica exacta (C-05 -- requiere medir el DOM
+    renderizado o un motor PDF server-side) siguen fuera de alcance de un
+    parche, con la misma justificacion que en los pases septimo/octavo/
+    noveno. Lo que si se hizo: la propia auditoria senala que aunque el
+    sistema esta bien disenado como "aproximacion", en ningun lugar de la
+    interfaz se le dice asi al usuario. Se agregaron tooltips explicitos:
+    el indicador "Norma activa" del Toolbar ahora aclara que controla
+    tipografia/tamano/interlineado/alineacion como aproximacion visual, no
+    una validacion certificada del formato exacto de cada institucion; el
+    numero de pagina de cada seccion en el editor (ya prefijado con "~"
+    desde un pase anterior) ahora tiene un tooltip aclarando que es una
+    estimacion por conteo de palabras, no la paginacion real del
+    documento exportado.
+
+Build verificado de nuevo: npm ci + tsc --noEmit + npm run build, limpio.
+Ademas de la verificacion con Postgres real (items 43-44) y con imagenes
+reales via Pillow + LibreOffice (item 46) descritas arriba.
+
+## Pendiente tras este pase (confirmado, requiere sesion dedicada,
+arquitectura, o archivos que no viven en este arbol)
+
+De la lista C/G de la auditoria "Exhaustiva" (31/08/2026), quedan sin
+tocar en este pase:
+
+- **Archivos que no existen en este arbol** (ver nota al inicio de este
+  pase): C-02 (PocketBase/render.yaml/backend legacy), G-12 (useAI.ts/
+  AIPanel.tsx), M-04/M-05. El usuario debe verificarlos y eliminarlos
+  directamente en su repo de GitHub, igual que se le indico con `pb.ts`.
+- C-01 (reconstruccion COMPLETA del contenido del DOCX/PDF desde la base
+  de datos, no solo los campos escalares del proyecto): requiere portar
+  el motor de `formatRef()` a la Edge Function sin poder probar las
+  consultas en vivo contra Supabase desde este entorno.
+- C-05 (paginacion fisica 100% exacta): arquitectura de medicion de DOM o
+  motor PDF server-side (Chromium/Playwright).
+- G-09 (motor bibliografico completo por norma -- multiples autores, DOI,
+  autores corporativos, capitulos), G-08 (sistema real de captions con
+  numeracion y referencias cruzadas "ver Tabla 4").
+- G-05 (retry/backoff con cola + optimistic locking real entre pestanas o
+  dispositivos), G-07 (RPC transaccional para sincronizar citas
+  atomicamente en vez de INSERT/UPDATE + upsert desde el cliente), G-14
+  (suite de tests unitarios/E2E).
+- P2 (ya reducido en este pase -- projectId en check-grammar resuelto,
+  ver item 45): alert()/confirm() nativos, ESLint en CI, auditoria de
+  dependencias, historial de versiones completo, BibTeX/RIS/CSL/ISO 690,
+  compresion de imagenes en el frontend, limpieza de drafts locales
+  huerfanos.

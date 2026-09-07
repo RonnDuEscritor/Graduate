@@ -256,7 +256,16 @@ export default function Toolbar({ grammarCount = 0 }: ToolbarProps) {
             </Group>
             {normaLabel && (
               <Group label="Norma activa">
-                <span className="text-xs text-brand-500 px-1 whitespace-nowrap self-center">{normaLabel}</span>
+                {/* Audit C-04/G-10 fix (Exhaustiva 31/08/2026, honestidad
+                    de etiquetado): controla tipografia, tamano, interlineado
+                    y alineacion -- una aproximacion visual a la norma, no
+                    una validacion certificada de cumplimiento (formato de
+                    citas, margenes exactos u otros requisitos especificos
+                    de cada universidad pueden variar). */}
+                <span
+                  className="text-xs text-brand-500 px-1 whitespace-nowrap self-center cursor-help"
+                  title="Aproximacion visual de la norma (tipografia, tamano, interlineado, alineacion). No sustituye la verificacion del formato exacto que exija tu institucion."
+                >{normaLabel}</span>
               </Group>
             )}
           </>
@@ -273,7 +282,16 @@ export default function Toolbar({ grammarCount = 0 }: ToolbarProps) {
             </Group>
             {normaLabel && (
               <Group label="Norma activa">
-                <span className="text-xs text-brand-500 px-1 whitespace-nowrap self-center">{normaLabel}</span>
+                {/* Audit C-04/G-10 fix (Exhaustiva 31/08/2026, honestidad
+                    de etiquetado): controla tipografia, tamano, interlineado
+                    y alineacion -- una aproximacion visual a la norma, no
+                    una validacion certificada de cumplimiento (formato de
+                    citas, margenes exactos u otros requisitos especificos
+                    de cada universidad pueden variar). */}
+                <span
+                  className="text-xs text-brand-500 px-1 whitespace-nowrap self-center cursor-help"
+                  title="Aproximacion visual de la norma (tipografia, tamano, interlineado, alineacion). No sustituye la verificacion del formato exacto que exija tu institucion."
+                >{normaLabel}</span>
               </Group>
             )}
           </>

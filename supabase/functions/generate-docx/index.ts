@@ -160,6 +160,84 @@ function inlineToRuns(content: any[] | undefined) {
   return runs
 }
 
+// Audit G-13 fix (Exhaustiva 31/08/2026, GRAVE): dataUriToImageRun used to
+// hard-code `transformation: { width: 420, height: 280 }` for every image
+// regardless of its real shape -- a portrait photo, a square diagram or a
+// wide screenshot were all squashed into that fixed 1.5:1 box, visibly
+// deforming anything that wasn't already close to that ratio. This reads
+// the real pixel dimensions straight out of the image bytes (no image
+// library available in this single-file Deno function, so these are
+// minimal hand-written header parsers -- one per format already accepted
+// by the regex in dataUriToImageRun below) and scales DOWN to fit inside
+// a max box while preserving aspect ratio, never upscaling past the
+// image's real size. Falls back to the old fixed 420x280 only if the
+// specific format's header couldn't be parsed, so a malformed image still
+// degrades the same way it always did rather than breaking the export.
+function getImageDimensions(buffer: any, format: string): { width: number, height: number } | null {
+  try {
+    if (format === 'png') {
+      // PNG signature (8 bytes) + chunk length (4) + "IHDR" (4) = 16 bytes
+      // in, then width(4 BE) + height(4 BE).
+      if (buffer.length < 24) return null
+      const width = buffer.readUInt32BE(16)
+      const height = buffer.readUInt32BE(20)
+      return (width > 0 && height > 0) ? { width, height } : null
+    }
+    if (format === 'gif') {
+      // "GIF87a"/"GIF89a" (6 bytes) then width(2 LE) + height(2 LE).
+      if (buffer.length < 10) return null
+      const width = buffer.readUInt16LE(6)
+      const height = buffer.readUInt16LE(8)
+      return (width > 0 && height > 0) ? { width, height } : null
+    }
+    if (format === 'jpeg') {
+      // Scan JFIF segments for a Start-Of-Frame marker (0xFFC0-0xFFCF,
+      // excluding 0xC4/0xC8/0xCC which aren't SOF); dimensions sit 5 and 7
+      // bytes into that segment.
+      let offset = 2 // skip the 0xFFD8 SOI marker
+      while (offset + 9 < buffer.length) {
+        if (buffer[offset] !== 0xFF) { offset++; continue }
+        const marker = buffer[offset + 1]
+        if (marker >= 0xC0 && marker <= 0xCF && marker !== 0xC4 && marker !== 0xC8 && marker !== 0xCC) {
+          const height = buffer.readUInt16BE(offset + 5)
+          const width  = buffer.readUInt16BE(offset + 7)
+          return (width > 0 && height > 0) ? { width, height } : null
+        }
+        const segmentLength = buffer.readUInt16BE(offset + 2)
+        if (segmentLength < 2) return null // malformed, avoid an infinite loop
+        offset += 2 + segmentLength
+      }
+      return null
+    }
+    if (format === 'webp') {
+      // RIFF header (12 bytes) + 4-byte chunk fourcc identifies the
+      // sub-format; each stores dimensions differently.
+      if (buffer.length < 30) return null
+      const chunk = buffer.toString('ascii', 12, 16)
+      if (chunk === 'VP8X') {
+        const width  = (buffer[24] | (buffer[25] << 8) | (buffer[26] << 16)) + 1
+        const height = (buffer[27] | (buffer[28] << 8) | (buffer[29] << 16)) + 1
+        return (width > 0 && height > 0) ? { width, height } : null
+      }
+      if (chunk === 'VP8 ') {
+        const width  = buffer.readUInt16LE(26) & 0x3FFF
+        const height = buffer.readUInt16LE(28) & 0x3FFF
+        return (width > 0 && height > 0) ? { width, height } : null
+      }
+      if (chunk === 'VP8L') {
+        const b0 = buffer[21], b1 = buffer[22], b2 = buffer[23], b3 = buffer[24]
+        const width  = 1 + (((b1 & 0x3F) << 8) | b0)
+        const height = 1 + (((b3 & 0x0F) << 10) | (b2 << 2) | ((b1 & 0xC0) >> 6))
+        return (width > 0 && height > 0) ? { width, height } : null
+      }
+      return null
+    }
+    return null
+  } catch (_e) {
+    return null
+  }
+}
+
 function dataUriToImageRun(src: string | undefined) {
   const match = /^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/i.exec(src || '')
   if (!match) return null
@@ -174,10 +252,21 @@ function dataUriToImageRun(src: string | undefined) {
     // `if (!run) return []` above) keeps the rest of the document
     // exporting normally instead of failing or timing out the whole request.
     if (buffer.length > MAX_IMAGE_BYTES) return null
+
+    const normalizedFormat = match[1].toLowerCase() === 'jpg' ? 'jpeg' : match[1].toLowerCase()
+    const dims = getImageDimensions(buffer, normalizedFormat)
+    const MAX_W = 420, MAX_H = 420
+    let width = 420, height = 280 // fallback: the old fixed box, only used if the header couldn't be parsed
+    if (dims) {
+      const scale = Math.min(MAX_W / dims.width, MAX_H / dims.height, 1) // never upscale past the real size
+      width  = Math.max(1, Math.round(dims.width * scale))
+      height = Math.max(1, Math.round(dims.height * scale))
+    }
+
     return new ImageRun({
       data: buffer,
-      transformation: { width: 420, height: 280 },
-      type: match[1].toLowerCase() === 'jpg' ? 'jpeg' : (match[1].toLowerCase() as any),
+      transformation: { width, height },
+      type: normalizedFormat as any,
     })
   } catch (_e) {
     return null
@@ -716,14 +805,42 @@ export default {
     }
 
     try {
+      // Audit C-01 fix (Exhaustiva 31/08/2026, CRITICO -- parcial): this
+      // used to select('id') only, confirm the row exists/belongs to the
+      // caller via RLS, and then trust payload.project's title/author/
+      // institution/year/norma completely for the rest of the export --
+      // an authenticated caller could export a DOCX whose cover page,
+      // header and norma-driven formatting said anything they wanted,
+      // unrelated to what's actually saved on their project. Full
+      // server-side reconstruction of the DOCUMENT CONTENT (sections,
+      // citations, bibliography) from the database instead of the
+      // client-supplied payload remains a bigger, separately-tracked
+      // change -- it requires porting the ~150-line formatRef() citation
+      // engine into this function, which isn't safe to do without a way
+      // to test the live Supabase queries this environment doesn't have
+      // network access to (see CAMBIOS.md pendientes). This narrower fix
+      // is fully verifiable, though: the project's own scalar identity
+      // fields are cheap to fetch and simply overwrite whatever the
+      // client sent for them, so the exported cover/header always match
+      // the real project regardless of what the request body claimed.
       const { data: project, error } = await ctx.supabase
         .from('projects')
-        .select('id')
+        .select('id, title, author, institution, year, norma')
         .eq('id', projectId)
         .maybeSingle()
 
       if (error || !project) {
         return Response.json({ error: 'No autorizado para exportar este proyecto.' }, { status: 403 })
+      }
+
+      payload.project = {
+        ...(payload.project || {}),
+        id: project.id,
+        title: project.title,
+        author: project.author ?? '',
+        institution: project.institution ?? '',
+        year: project.year ?? new Date().getFullYear(),
+        norma: project.norma,
       }
 
       const doc = buildDocx(payload)

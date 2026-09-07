@@ -37,7 +37,14 @@ export function useLanguageTool() {
   const checkText = useCallback(async (
     text: string,
     onResults: (matches: LTMatch[]) => void,
-    language = 'es'
+    language = 'es',
+    // Audit G-06 fix (Exhaustiva 31/08/2026, GRAVE): check-grammar used to
+    // authenticate the caller but never learned WHICH project the text
+    // belonged to, so any logged-in user could call it as a general-purpose
+    // proxy to LanguageTool -- unrelated to their own projects, with no way
+    // for the Edge Function to tell the difference. projectId is now
+    // required and checked server-side (see check-grammar/index.ts).
+    projectId?: string,
   ) => {
     if (!text || text.trim().length < 10) {
       onResults([])
@@ -59,7 +66,7 @@ export function useLanguageTool() {
           'Authorization': `Bearer ${session.access_token}`,
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ text, language }),
+        body: JSON.stringify({ text, language, projectId }),
         signal: controller.signal,
       })
 
@@ -79,11 +86,12 @@ export function useLanguageTool() {
     text: string,
     onResults: (matches: LTMatch[]) => void,
     delayMs = 2000,
-    language = 'es'
+    language = 'es',
+    projectId?: string,
   ) => {
     if (checkTimerRef.current) clearTimeout(checkTimerRef.current)
     checkTimerRef.current = setTimeout(() => {
-      checkText(text, onResults, language)
+      checkText(text, onResults, language, projectId)
     }, delayMs)
   }, [checkText])
 
