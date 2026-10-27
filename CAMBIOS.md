@@ -968,3 +968,31 @@ tocar en este pase:
   dependencias, historial de versiones completo, BibTeX/RIS/CSL/ISO 690,
   compresion de imagenes en el frontend, limpieza de drafts locales
   huerfanos.
+
+## Undecimo pase -- Correcciones de interfaz reportadas por el usuario (27/10/2026)
+
+Tres problemas visibles en la app desplegada (capturas de login y de
+"Mis proyectos"):
+
+48. [UX] La contrasena no se podia ver al escribirla. `LoginPage.tsx` ahora
+    tiene un boton de ojo (`ti-eye` / `ti-eye-off`) dentro del campo que
+    alterna `type="password"` / `type="text"`, con `aria-label`.
+
+49. [Accesibilidad] Texto con contraste insuficiente en login y en la lista
+    de proyectos. Se calcularon las razones de contraste WCAG de la paleta
+    `brand` contra los fondos oscuros: `brand-400` da ~3.6-4:1 (el minimo AA
+    para texto pequeno es 4.5:1), `brand-500` ~1.8-2:1 y `brand-600`
+    ~1.3-1.5:1 (practicamente invisible: pie de pagina, badge de norma,
+    "hace Nd", conteo de palabras). Todo texto de lectura que usaba
+    `text-brand-400/500/600` paso a `text-brand-300` (~6.3-7.1:1) en
+    `LoginPage.tsx` y `DashboardPage.tsx`: subtitulo, etiquetas de campos,
+    enlaces, pestanas inactivas, correo, boton "Salir", tipo de tesis,
+    badge de norma, antiguedad, palabras, icono de eliminar y modal de
+    nueva tesis. No se tocaron fondos ni bordes (`bg-*`, `border-*`).
+
+50. [UX] Las tarjetas de proyecto casi no se distinguian del fondo
+    (`border-brand-800` sobre `bg-brand-950`). Ahora tienen un borde blanco
+    translucido siempre visible (`border-white/25`) que pasa al acento de
+    marca al pasar el mouse.
+
+Build verificado: npm ci + tsc --noEmit + npm run build, limpio.
