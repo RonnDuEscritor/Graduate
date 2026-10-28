@@ -46,7 +46,7 @@ export default function EditorPage() {
     <div className="h-full flex items-center justify-center bg-brand-950">
       <div className="flex flex-col items-center gap-3">
         <div className="w-8 h-8 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
-        <span className="text-brand-400 text-sm">Cargando documento...</span>
+        <span className="text-brand-200 text-sm">Cargando documento...</span>
       </div>
     </div>
   )
@@ -55,7 +55,7 @@ export default function EditorPage() {
     <div className="h-full flex items-center justify-center bg-brand-950">
       <div className="text-center">
         <p className="text-red-400 text-sm mb-3">{error}</p>
-        <button onClick={() => navigate('/')} className="text-brand-400 text-xs underline">
+        <button onClick={() => navigate("/")} className="text-brand-200 text-xs underline">
           Volver al dashboard
         </button>
       </div>
@@ -103,10 +103,10 @@ export default function EditorPage() {
         <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-brand-100 flex-shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <button onClick={() => setSidebarOpen(true)}
-              className="md:hidden w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg text-brand-500 hover:bg-brand-50">
+              className="md:hidden w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg text-brand-700 hover:bg-brand-50">
               <i className="ti ti-menu-2 text-lg" />
             </button>
-            <span className="text-brand-300 text-xs font-medium truncate max-w-[140px] md:max-w-xs">{project.title}</span>
+            <span className="text-brand-700 text-xs font-medium truncate max-w-[140px] md:max-w-xs">{project.title}</span>
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
@@ -114,19 +114,19 @@ export default function EditorPage() {
             <div className="hidden md:flex items-center gap-1 bg-brand-50 rounded-lg px-1 py-0.5">
               <button onClick={() => setZoomIdx(i => Math.max(0, i - 1))}
                 disabled={zoomIdx === 0}
-                className="w-6 h-6 flex items-center justify-center rounded text-brand-500 hover:bg-white disabled:opacity-30 transition-all">
+                className="w-6 h-6 flex items-center justify-center rounded text-brand-700 hover:bg-white disabled:opacity-30 transition-all">
                 <i className="ti ti-minus text-xs" />
               </button>
-              <span className="text-xs text-brand-500 w-10 text-center select-none">
+              <span className="text-xs text-brand-700 w-10 text-center select-none">
                 {Math.round(zoom * 100)}%
               </span>
               <button onClick={() => setZoomIdx(i => Math.min(ZOOM_LEVELS.length - 1, i + 1))}
                 disabled={zoomIdx === ZOOM_LEVELS.length - 1}
-                className="w-6 h-6 flex items-center justify-center rounded text-brand-500 hover:bg-white disabled:opacity-30 transition-all">
+                className="w-6 h-6 flex items-center justify-center rounded text-brand-700 hover:bg-white disabled:opacity-30 transition-all">
                 <i className="ti ti-plus text-xs" />
               </button>
               <button onClick={() => setZoomIdx(3)} title="Restablecer zoom"
-                className="w-6 h-6 flex items-center justify-center rounded text-brand-400 hover:bg-white transition-all">
+                className="w-6 h-6 flex items-center justify-center rounded text-brand-700 hover:bg-white transition-all">
                 <i className="ti ti-zoom-reset text-xs" />
               </button>
             </div>

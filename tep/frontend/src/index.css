@@ -36,27 +36,27 @@
 
 .page-header {
   position:absolute; top:12mm; left:25.4mm; right:25.4mm;
-  font-size:9pt; color:#999; border-bottom:0.5pt solid #ddd;
+  font-size:9pt; color:#444; border-bottom:0.5pt solid #bbb;
   padding-bottom:3pt; display:flex; justify-content:space-between;
   font-family:'Times New Roman',Times,serif;
 }
 .page-footer {
   position:absolute; bottom:12mm; left:25.4mm; right:25.4mm;
-  font-size:9pt; color:#666; text-align:center;
-  border-top:0.5pt solid #ddd; padding-top:3pt;
+  font-size:9pt; color:#333; text-align:center;
+  border-top:0.5pt solid #bbb; padding-top:3pt;
   font-family:'Times New Roman',Times,serif;
 }
 .section-anchor-label {
-  font-size:7.5pt; color:rgba(125,26,49,0.45); text-transform:uppercase;
+  font-size:7.5pt; font-weight:600; color:#7D1A31; text-transform:uppercase;
   letter-spacing:0.1em; margin-bottom:8pt;
-  border-left:2px solid rgba(125,26,49,0.3); padding-left:6pt;
+  border-left:2px solid rgba(125,26,49,0.6); padding-left:6pt;
   user-select:none; font-family:'Inter',sans-serif; display:block;
 }
 
 /* -- TIPTAP -------------------------------------------------- */
 .tiptap { outline: none; min-height: 2em; }
 .tiptap p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder); color: #bbb; font-style: italic;
+  content: attr(data-placeholder); color: #595959; font-style: italic;
   pointer-events: none; float: left; height: 0;
 }
 .tiptap h1 { font-family:'Playfair Display',serif; font-size:18pt; font-weight:600; color:#20040D; margin:.8em 0 .4em; line-height:1.25; }
@@ -133,7 +133,7 @@
 /* -- WORD-STYLE RIBBON ------------------------------------------ */
 .ribbon-tab-btn {
   padding: 6px 18px; font-size: 14px; font-weight: 700;
-  color: #8A6672; border-bottom: 3px solid transparent;
+  color: #4A2F38; border-bottom: 3px solid transparent;
   transition: all .15s ease; white-space: nowrap; letter-spacing: .01em;
 }
 .ribbon-tab-btn:hover { color: #450A1B; background: rgba(125,26,49,.06); }
@@ -146,6 +146,9 @@
 }
 .ribbon-group:last-child { border-right: none; }
 .ribbon-group-label {
-  font-size: 9px; color: #CB8698; text-align: center; text-transform: uppercase;
+  font-size: 10px; font-weight: 600; color: #7D1A31; text-align: center; text-transform: uppercase;
   letter-spacing: .04em; margin-top: 2px;
 }
+
+/* Contraste alto en campos de formulario (todos los inputs viven sobre fondo oscuro) */
+input::placeholder, textarea::placeholder { color: #CB8698; opacity: 1; }

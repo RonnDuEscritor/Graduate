@@ -996,3 +996,30 @@ Tres problemas visibles en la app desplegada (capturas de login y de
     marca al pasar el mouse.
 
 Build verificado: npm ci + tsc --noEmit + npm run build, limpio.
+
+## Duodecimo pase -- Contraste alto en toda la plataforma (27/10/2026)
+
+El usuario senalo (capturas de "Mis proyectos" y del editor) que seguia
+habiendo texto muy tenue en la plataforma y en la pantalla de edicion. El
+pase anterior solo habia llegado a `brand-300` (~6.3:1 sobre fondo oscuro,
+cumple AA pero se sigue viendo apagado). Ahora el objetivo es contraste
+alto (>= 10:1 en texto secundario) en todas las superficies:
+
+51. [Superficies oscuras: panel lateral, proyectos, login, paneles de
+    referencias/revision/progreso/validador/gramatica, modal de exportar]
+    Todo `text-brand-300/400/500/600` y `text-white/35..60` paso a
+    `text-brand-200` (~10.5-11.8:1); `text-white/70..80` a `brand-50`
+    (~16-18:1). Los `hover:text-*` se unificaron a `hover:text-white` para
+    que el hover aclare en vez de oscurecer. Placeholders de inputs:
+    `#CB8698` con opacidad 1 (regla global, todos los inputs viven sobre
+    fondo oscuro).
+52. [Superficies claras: barra superior del editor, cinta (ribbon) y hoja]
+    `text-brand-300/400/500` -> `brand-600/700` (13-16:1). CSS: pestanas
+    de la cinta `#8A6672` -> `#4A2F38`, etiquetas de grupo `#CB8698`
+    (2.8:1) -> `#7D1A31` en negrita, encabezado de pagina `#999` -> `#444`,
+    pie `#666` -> `#333`, etiqueta de seccion de ~2:1 a `#7D1A31`,
+    placeholder del editor `#bbb` (1.9:1) -> `#595959`.
+
+Verificado: build limpio (tsc + vite build) y medicion de contraste real
+sobre la pantalla de login renderizada con Chromium headless: el texto mas
+tenue mide 10.2:1.

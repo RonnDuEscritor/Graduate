@@ -85,7 +85,7 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <button onClick={() => setSidebarOpen(false)}
-          className="md:hidden absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 z-10">
+          className="md:hidden absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-lg text-brand-200 hover:text-white hover:bg-white/10 z-10">
           <i className="ti ti-x text-lg" />
         </button>
 
@@ -99,20 +99,20 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
             Graduate{" "}
             <span className="text-xs bg-gold text-brand-950 rounded px-1 font-bold align-middle">PRO</span>
           </div>
-          <div className="text-white/40 text-xs">by RonnDu Corp.</div>
+          <div className="text-brand-200 text-xs">by RonnDu Corp.</div>
         </div>
       </div>
 
       {/* Project + norma */}
       <div className="px-3.5 py-2.5 border-b border-white/10 flex-shrink-0 space-y-2">
         <button onClick={() => navigate("/")}
-          className="flex items-center gap-1.5 text-white/60 hover:text-gold text-xs transition-colors w-full text-left">
+          className="flex items-center gap-1.5 text-brand-200 hover:text-gold text-xs transition-colors w-full text-left">
           <i className="ti ti-chevron-left text-xs" />
           <span className="truncate">{project?.title ?? "Dashboard"}</span>
         </button>
 
         <div>
-          <p className="text-white/35 text-xs mb-1 uppercase tracking-wider">Norma</p>
+          <p className="text-brand-200 text-xs mb-1 uppercase tracking-wider">Norma</p>
           {/* Audit P0 4.4: switched from a row of pill buttons to a select
               -- with 3 styles the pills fit fine, but now that NORMAS
               (types/index.ts) has 7 entries, cramming them all into
@@ -122,7 +122,7 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
           <select
             value={norma}
             onChange={e => setNorma(e.target.value as NormaType)}
-            className="w-full bg-white/5 text-white/80 text-xs py-1.5 px-2 rounded-md border border-white/10 outline-none focus:border-gold/60"
+            className="w-full bg-white/5 text-brand-50 text-xs py-1.5 px-2 rounded-md border border-white/10 outline-none focus:border-gold/60"
           >
             {(Object.keys(NORMAS) as NormaType[]).map(n => (
               <option key={n} value={n} className="bg-brand-950">{NORMAS[n].label}</option>
@@ -131,7 +131,7 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
         </div>
 
         <div>
-          <div className="flex justify-between text-xs text-white/50 mb-1">
+          <div className="flex justify-between text-xs text-brand-200 mb-1">
             <span>{filledSections}/{totalSections} secciones</span>
             <span>{totalWords.toLocaleString("es")} palabras</span>
           </div>
@@ -155,7 +155,7 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
             onClick={() => setTab(t.id as PanelTab)}
             className={cn(
               "flex-1 flex items-center justify-center py-2 text-sm border-b-2 transition-all relative",
-              tab === t.id ? "text-gold border-gold" : "text-white/40 border-transparent hover:text-white/70"
+              tab === t.id ? "text-gold border-gold" : "text-brand-200 border-transparent hover:text-white"
             )}>
             <i className={`ti ${t.icon}`} />
             {t.badge > 0 && (
@@ -174,7 +174,7 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
             {tipo.fases.map(fase => (
               <div key={fase.fase}>
                 <div className="px-3.5 pt-3 pb-1">
-                  <p className="text-white/35 text-xs font-medium uppercase tracking-wider">
+                  <p className="text-brand-200 text-xs font-medium uppercase tracking-wider">
                     {fase.isRoman ? "(i,ii) " : "(1,2) "}{fase.fase}
                   </p>
                 </div>
@@ -188,7 +188,7 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
                         "w-full flex items-start gap-2 px-3.5 py-1.5 text-left text-xs transition-all border-l-2",
                         isActive
                           ? "bg-gold/10 border-gold text-white"
-                          : "border-transparent text-white/55 hover:bg-white/5 hover:text-white"
+                          : "border-transparent text-brand-200 hover:bg-white/5 hover:text-white"
                       )}>
                       <span className={cn(
                         "w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0",
@@ -196,7 +196,7 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
                       )} />
                       <span className="leading-tight">{name}</span>
                       {hasCont && (
-                        <span className="ml-auto text-white/35 text-xs flex-shrink-0">{sec!.word_count}</span>
+                        <span className="ml-auto text-brand-200 text-xs flex-shrink-0">{sec!.word_count}</span>
                       )}
                     </button>
                   )
@@ -215,11 +215,11 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
       <div className="px-3.5 py-2 border-t border-white/10 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-1.5">
           <span className={cn("w-1.5 h-1.5 rounded-full", isSaving ? "bg-gold animate-pulse" : "bg-green-400")} />
-          <span className="text-white/40 text-xs">
+          <span className="text-brand-200 text-xs">
             {isSaving ? "Guardando..." : lastSaved ? relativeTime(lastSaved) : "Listo"}
           </span>
         </div>
-        <button onClick={signOut} className="text-white/40 hover:text-gold text-xs transition-colors">
+        <button onClick={signOut} className="text-brand-200 hover:text-gold text-xs transition-colors">
           <i className="ti ti-logout text-sm" />
         </button>
       </div>

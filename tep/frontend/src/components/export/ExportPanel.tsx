@@ -451,11 +451,11 @@ ${bodyHTML}${bibHTML}
           <div className="w-10 h-10 rounded-xl bg-brand-700/50 flex items-center justify-center text-xl">📄</div>
           <div>
             <h3 className="font-serif text-brand-100 font-medium">Exportar tesis</h3>
-            <p className="text-brand-500 text-xs">{done} de {total} secciones con contenido</p>
+            <p className="text-brand-200 text-xs">{done} de {total} secciones con contenido</p>
           </div>
         </div>
 
-        <div className="bg-brand-800/50 rounded-xl p-3 mb-4 text-xs text-brand-400 space-y-1">
+        <div className="bg-brand-800/50 rounded-xl p-3 mb-4 text-xs text-brand-200 space-y-1">
           <div className="flex justify-between"><span>Norma:</span><span className="text-brand-200">{NORMAS[norma].label}</span></div>
           <div className="flex justify-between"><span>Tipo:</span><span className="text-brand-200 text-right">{project ? TIPOS_TESIS[project.tipo].nombre : '—'}</span></div>
           <div className="flex justify-between"><span>Palabras:</span><span className="text-brand-200">{sections.reduce((s,sec)=>s+sec.word_count,0).toLocaleString('es')}</span></div>
@@ -471,11 +471,11 @@ ${bodyHTML}${bibHTML}
             </div>
           </button>
           <button onClick={exportDocx} disabled={loading}
-            className="w-full flex items-center gap-3 bg-brand-700/30 hover:bg-brand-700/50 border border-brand-600/30 rounded-xl px-4 py-3 text-sm text-brand-300 font-medium transition-all disabled:opacity-50">
+            className="w-full flex items-center gap-3 bg-brand-700/30 hover:bg-brand-700/50 border border-brand-600/30 rounded-xl px-4 py-3 text-sm text-brand-200 font-medium transition-all disabled:opacity-50">
             <i className="ti ti-file-word text-xl" />
             <div className="text-left">
               <div>Exportar Word (.docx)</div>
-              <div className="text-xs text-brand-500 font-normal">Documento real editable, con indice automatico</div>
+              <div className="text-xs text-brand-200 font-normal">Documento real editable, con indice automatico</div>
             </div>
           </button>
         </div>
@@ -486,7 +486,7 @@ ${bodyHTML}${bibHTML}
           </p>
         )}
 
-        <button onClick={onClose} className="w-full mt-3 py-2 text-xs text-brand-500 hover:text-brand-300 transition-colors">
+        <button onClick={onClose} className="w-full mt-3 py-2 text-xs text-brand-200 hover:text-white transition-colors">
           Cancelar
         </button>
       </div>

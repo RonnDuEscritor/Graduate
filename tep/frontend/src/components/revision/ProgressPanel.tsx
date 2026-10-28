@@ -110,7 +110,7 @@ export default function ProgressPanel() {
       {/* Header */}
       <div className="bg-brand-800/50 rounded-xl p-3 border border-brand-700/30">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-brand-300 text-xs font-medium">Progreso academico</span>
+          <span className="text-brand-200 text-xs font-medium">Progreso academico</span>
           <span className={cn('text-lg font-bold', pctColor)}>{pct}%</span>
         </div>
         <div className="h-2 bg-brand-800 rounded-full overflow-hidden">
@@ -119,7 +119,7 @@ export default function ProgressPanel() {
             style={{ width: `${pct}%` }}
           />
         </div>
-        <p className="text-brand-500 text-xs mt-1.5">{done} de {total} elementos completados</p>
+        <p className="text-brand-200 text-xs mt-1.5">{done} de {total} elementos completados</p>
       </div>
 
       {/* Checklist */}
@@ -134,15 +134,15 @@ export default function ProgressPanel() {
             )}>
             <span className={cn(
               'flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-xs mt-0.5',
-              item.done ? 'bg-green-500 text-white' : 'bg-brand-700 text-brand-500'
+              item.done ? 'bg-green-500 text-white' : 'bg-brand-700 text-brand-200'
             )}>
               {item.done ? <i className="ti ti-check" style={{fontSize:'10px'}} /> : <i className="ti ti-minus" style={{fontSize:'10px'}} />}
             </span>
             <div className="min-w-0">
-              <p className={cn('font-medium leading-tight', item.done ? 'text-green-400' : 'text-brand-400')}>
+              <p className={cn('font-medium leading-tight', item.done ? 'text-green-400' : 'text-brand-200')}>
                 {item.label}
               </p>
-              <p className="text-brand-600 text-xs leading-tight mt-0.5">{item.section.replace('Cap. ','Cap.')}</p>
+              <p className="text-brand-200 text-xs leading-tight mt-0.5">{item.section.replace('Cap. ','Cap.')}</p>
             </div>
           </div>
         ))}
@@ -156,7 +156,7 @@ export default function ProgressPanel() {
       {pct < 100 && (() => {
         const next = results.find(r => !r.done)
         return (
-          <div className="bg-brand-800/30 border border-brand-700/20 rounded-xl p-2.5 text-xs text-brand-400">
+          <div className="bg-brand-800/30 border border-brand-700/20 rounded-xl p-2.5 text-xs text-brand-200">
             <i className="ti ti-bulb text-gold mr-1" />
             {next
               ? `Sigue con "${next.label}" en ${next.section.replace('Cap. ', 'Cap.')}.`

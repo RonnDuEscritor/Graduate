@@ -95,21 +95,21 @@ export default function ReferencesPanel() {
       <div className="flex gap-1">
         <input value={doiQuery} onChange={e=>setDoiQuery(e.target.value)}
           placeholder="DOI para importar…" onKeyDown={e=>e.key==='Enter'&&handleDOI()}
-          className="flex-1 bg-brand-800/60 border border-brand-700 rounded-lg px-2 py-1.5 text-xs text-brand-200 outline-none focus:border-brand-500 placeholder:text-brand-600" />
+          className="flex-1 bg-brand-800/60 border border-brand-700 rounded-lg px-2 py-1.5 text-xs text-brand-200 outline-none focus:border-brand-500 placeholder:text-brand-300" />
         <button onClick={handleDOI} disabled={doiLoading}
-          className="px-2 py-1.5 bg-brand-700 hover:bg-brand-600 rounded-lg text-xs text-brand-300 transition-colors disabled:opacity-50">
+          className="px-2 py-1.5 bg-brand-700 hover:bg-brand-600 rounded-lg text-xs text-brand-200 transition-colors disabled:opacity-50">
           {doiLoading ? '…' : <i className="ti ti-search text-sm" />}
         </button>
       </div>
 
       <button onClick={openNew}
-        className="w-full flex items-center justify-center gap-1.5 border border-dashed border-brand-700 hover:border-brand-500 rounded-lg py-2 text-xs text-brand-500 hover:text-brand-300 transition-all">
+        className="w-full flex items-center justify-center gap-1.5 border border-dashed border-brand-700 hover:border-brand-500 rounded-lg py-2 text-xs text-brand-200 hover:text-white transition-all">
         <i className="ti ti-plus text-sm" /> Agregar fuente
       </button>
 
       {/* Reference list */}
       {sorted.length === 0 ? (
-        <p className="text-center text-brand-600 text-xs py-4 italic">Sin referencias aún</p>
+        <p className="text-center text-brand-200 text-xs py-4 italic">Sin referencias aún</p>
       ) : sorted.map(r => (
         <div key={r.id}
           className={cn('rounded-lg border p-2.5 transition-all',
@@ -118,22 +118,22 @@ export default function ReferencesPanel() {
             <button className="text-left flex-1 min-w-0" onClick={() => insertCite(r)} title="Clic para insertar cita">
               <span className="text-brand-200 text-xs font-medium">{r.author}</span>
               <span className="text-gold text-xs ml-1">({r.year})</span>
-              <p className="text-brand-500 text-xs italic mt-0.5 line-clamp-2">{r.title}</p>
+              <p className="text-brand-200 text-xs italic mt-0.5 line-clamp-2">{r.title}</p>
               {citedIds.has(r.id) && (
                 <span className="text-green-500 text-xs">✓ citada</span>
               )}
             </button>
             <div className="flex gap-1 flex-shrink-0">
-              <button onClick={() => openEdit(r)} className="text-brand-600 hover:text-brand-300 text-xs p-0.5">
+              <button onClick={() => openEdit(r)} className="text-brand-200 hover:text-white text-xs p-0.5">
                 <i className="ti ti-pencil" />
               </button>
-              <button onClick={() => remove(r.id)} className="text-brand-600 hover:text-red-400 text-xs p-0.5">
+              <button onClick={() => remove(r.id)} className="text-brand-200 hover:text-red-400 text-xs p-0.5">
                 <i className="ti ti-trash" />
               </button>
             </div>
           </div>
           {/* APA/Vancouver preview */}
-          <p className="text-brand-600 text-xs mt-1 line-clamp-1"
+          <p className="text-brand-200 text-xs mt-1 line-clamp-1"
             dangerouslySetInnerHTML={{ __html: formatRef(r, norma, useStore.getState().getVancouverOrder().get(r.id) ?? 1) }} />
         </div>
       ))}
@@ -160,7 +160,7 @@ export default function ReferencesPanel() {
                 { label:'URL',                     key:'url',     placeholder:'https://…' },
               ].map(f => (
                 <div key={f.key}>
-                  <label className="block text-xs text-brand-400 mb-1">{f.label}</label>
+                  <label className="block text-xs text-brand-200 mb-1">{f.label}</label>
                   <input
                     type={f.type ?? 'text'}
                     value={(form as Record<string,string>)[f.key]}
@@ -170,7 +170,7 @@ export default function ReferencesPanel() {
                 </div>
               ))}
               <div>
-                <label className="block text-xs text-brand-400 mb-1">Tipo</label>
+                <label className="block text-xs text-brand-200 mb-1">Tipo</label>
                 <select value={form.ref_type} onChange={e => setForm(f => ({...f, ref_type: e.target.value as RefType}))}
                   className="w-full bg-brand-800 border border-brand-600 rounded-lg px-3 py-1.5 text-xs text-brand-100 outline-none focus:border-brand-400">
                   {(['libro','articulo','tesis','web','capitulo'] as RefType[]).map(t => (
@@ -181,7 +181,7 @@ export default function ReferencesPanel() {
             </div>
             <div className="flex gap-2 mt-5">
               <button onClick={() => setShowForm(false)}
-                className="flex-1 py-2 rounded-lg text-xs border border-brand-700 text-brand-400 hover:text-brand-200 transition-colors">
+                className="flex-1 py-2 rounded-lg text-xs border border-brand-700 text-brand-200 hover:text-white transition-colors">
                 Cancelar
               </button>
               <button onClick={save} disabled={saving}

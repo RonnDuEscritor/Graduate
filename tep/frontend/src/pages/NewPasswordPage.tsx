@@ -39,19 +39,19 @@ export default function NewPasswordPage({ onDone }: { onDone: () => void }) {
       <div className="w-full max-w-sm animate-fadeIn">
         <div className="text-center mb-8">
           <h1 className="font-serif text-2xl text-brand-100 font-semibold">Nueva contrasena</h1>
-          <p className="text-brand-400 text-xs mt-1">Elige una contrasena nueva para tu cuenta</p>
+          <p className="text-brand-200 text-xs mt-1">Elige una contrasena nueva para tu cuenta</p>
         </div>
 
         <div className="bg-brand-800 border border-brand-700 rounded-2xl p-6">
           <form onSubmit={handle} className="space-y-4">
             <div>
-              <label className="block text-xs text-brand-400 mb-1">Nueva contrasena</label>
+              <label className="block text-xs text-brand-200 mb-1">Nueva contrasena</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8}
                 className="w-full bg-brand-900 border border-brand-600 rounded-lg px-3 py-2 text-sm text-brand-100 outline-none focus:border-brand-400"
                 placeholder="Minimo 8 caracteres" autoFocus />
             </div>
             <div>
-              <label className="block text-xs text-brand-400 mb-1">Confirma la contrasena</label>
+              <label className="block text-xs text-brand-200 mb-1">Confirma la contrasena</label>
               <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required minLength={8}
                 className="w-full bg-brand-900 border border-brand-600 rounded-lg px-3 py-2 text-sm text-brand-100 outline-none focus:border-brand-400"
                 placeholder="Repite la contrasena" />

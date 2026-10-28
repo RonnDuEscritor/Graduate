@@ -336,7 +336,7 @@ function validateThesis(sections: PBSection[], tipo: TipoTesis | null | undefine
 const SEVERITY_CONFIG = {
   critical: { color: 'bg-red-900/20 border-red-700/30 text-red-400',    icon: 'ti-circle-x',       label: 'Critico' },
   warning:  { color: 'bg-orange-900/20 border-orange-700/30 text-orange-400', icon: 'ti-alert-triangle', label: 'Advertencia' },
-  info:     { color: 'bg-brand-800/30 border-brand-700/20 text-brand-400',    icon: 'ti-info-circle',    label: 'Sugerencia' },
+  info:     { color: 'bg-brand-800/30 border-brand-700/20 text-brand-200',    icon: 'ti-info-circle',    label: 'Sugerencia' },
 }
 
 export default function AcademicValidator() {
@@ -352,7 +352,7 @@ export default function AcademicValidator() {
     <div className="p-4 text-center">
       <div className="text-2xl mb-2">✓</div>
       <p className="text-green-400 text-xs font-medium">Sin problemas metodologicos detectados</p>
-      <p className="text-brand-600 text-xs mt-1">La estructura academica parece completa</p>
+      <p className="text-brand-200 text-xs mt-1">La estructura academica parece completa</p>
     </div>
   )
 
@@ -361,7 +361,7 @@ export default function AcademicValidator() {
     const cfg = SEVERITY_CONFIG[severity]
     return (
       <div className="mb-2">
-        <p className="text-xs font-medium text-brand-500 uppercase tracking-wider px-2 py-1">
+        <p className="text-xs font-medium text-brand-200 uppercase tracking-wider px-2 py-1">
           {cfg.label}s ({items.length})
         </p>
         {items.map(issue => (
@@ -394,7 +394,7 @@ export default function AcademicValidator() {
       <div className="flex gap-1 flex-wrap px-2 py-2 border-b border-brand-700/20">
         {crits.length > 0 && <span className="text-xs bg-red-900/30 text-red-400 border border-red-700/30 rounded px-2 py-0.5">{crits.length} criticos</span>}
         {warns.length > 0 && <span className="text-xs bg-orange-900/30 text-orange-400 border border-orange-700/30 rounded px-2 py-0.5">{warns.length} advertencias</span>}
-        {infos.length > 0 && <span className="text-xs bg-brand-800/30 text-brand-400 border border-brand-700/30 rounded px-2 py-0.5">{infos.length} sugerencias</span>}
+        {infos.length > 0 && <span className="text-xs bg-brand-800/30 text-brand-200 border border-brand-700/30 rounded px-2 py-0.5">{infos.length} sugerencias</span>}
       </div>
       <div className="pt-1">
         <Section items={crits}  severity="critical" />

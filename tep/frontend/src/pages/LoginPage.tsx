@@ -56,7 +56,7 @@ export default function LoginPage() {
             <img src={LOGO_SRC} alt="Graduate" className="w-full h-full object-contain" />
           </div>
           <h1 className="font-serif text-2xl text-brand-100 font-semibold">Graduate</h1>
-          <p className="text-brand-300 text-xs mt-1 tracking-widest uppercase">by RonnDu Corp.</p>
+          <p className="text-brand-200 text-xs mt-1 tracking-widest uppercase">by RonnDu Corp.</p>
         </div>
 
         <div className="bg-brand-800 border border-brand-700 rounded-2xl p-6">
@@ -64,7 +64,7 @@ export default function LoginPage() {
             {(['login','register'] as const).map(m => (
               <button key={m} onClick={() => setMode(m)}
                 className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${
-                  mode===m ? 'bg-brand-500 text-white shadow' : 'text-brand-300 hover:text-brand-100'
+                  mode===m ? 'bg-brand-500 text-white shadow' : 'text-brand-200 hover:text-white'
                 }`}>
                 {m==='login' ? 'Iniciar sesion' : 'Registrarse'}
               </button>
@@ -72,7 +72,7 @@ export default function LoginPage() {
           </div>
 
           {mode === 'reset' && (
-            <p className="text-brand-300 text-xs mb-4">
+            <p className="text-brand-200 text-xs mb-4">
               Ingresa tu correo y te enviaremos un enlace para restablecer tu contrasena.
             </p>
           )}
@@ -80,28 +80,28 @@ export default function LoginPage() {
           <form onSubmit={handle} className="space-y-4">
             {mode==='register' && (
               <div>
-                <label className="block text-xs text-brand-300 mb-1">Nombre completo</label>
+                <label className="block text-xs text-brand-200 mb-1">Nombre completo</label>
                 <input value={name} onChange={e=>setName(e.target.value)} required
                   className="w-full bg-brand-900 border border-brand-600 rounded-lg px-3 py-2 text-sm text-brand-100 outline-none focus:border-brand-400"
                   placeholder="Tu nombre" />
               </div>
             )}
             <div>
-              <label className="block text-xs text-brand-300 mb-1">Correo electronico</label>
+              <label className="block text-xs text-brand-200 mb-1">Correo electronico</label>
               <input type="email" value={email} onChange={e=>setEmail(e.target.value)} required
                 className="w-full bg-brand-900 border border-brand-600 rounded-lg px-3 py-2 text-sm text-brand-100 outline-none focus:border-brand-400"
                 placeholder="tu@email.com" />
             </div>
             {mode !== 'reset' && (
               <div>
-                <label className="block text-xs text-brand-300 mb-1">Contrasena</label>
+                <label className="block text-xs text-brand-200 mb-1">Contrasena</label>
                 <div className="relative">
                   <input type={showPassword ? 'text' : 'password'} value={password} onChange={e=>setPass(e.target.value)} required minLength={8}
                     className="w-full bg-brand-900 border border-brand-600 rounded-lg px-3 py-2 pr-10 text-sm text-brand-100 outline-none focus:border-brand-400"
                     placeholder="Minimo 8 caracteres" />
                   <button type="button" onClick={() => setShowPassword(s => !s)}
                     aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
-                    className="absolute right-0 top-0 h-full px-3 flex items-center text-brand-300 hover:text-brand-100 transition-colors">
+                    className="absolute right-0 top-0 h-full px-3 flex items-center text-brand-200 hover:text-white transition-colors">
                     <i className={showPassword ? 'ti ti-eye-off' : 'ti ti-eye'} style={{fontSize:'16px'}} />
                   </button>
                 </div>
@@ -109,13 +109,13 @@ export default function LoginPage() {
             )}
             {mode === 'login' && (
               <button type="button" onClick={() => { setMode('reset'); setError(''); setInfo('') }}
-                className="text-xs text-brand-300 hover:text-brand-200 -mt-2">
+                className="text-xs text-brand-200 hover:text-white -mt-2">
                 Olvidaste tu contrasena?
               </button>
             )}
             {mode === 'reset' && (
               <button type="button" onClick={() => { setMode('login'); setError(''); setInfo('') }}
-                className="text-xs text-brand-300 hover:text-brand-200 -mt-2">
+                className="text-xs text-brand-200 hover:text-white -mt-2">
                 Volver a iniciar sesion
               </button>
             )}
@@ -139,7 +139,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-brand-300 text-xs mt-4">
+        <p className="text-center text-brand-200 text-xs mt-4">
           Graduate &bull; RonnDu Corp. &bull; {new Date().getFullYear()}
         </p>
       </div>

@@ -11,7 +11,7 @@ interface GrammarPanelProps {
 
 export default function GrammarPanel({ matches, checking, onFix, onDismiss }: GrammarPanelProps) {
   if (checking) return (
-    <div className="p-4 flex items-center gap-2 text-white/50 text-xs">
+    <div className="p-4 flex items-center gap-2 text-brand-200 text-xs">
       <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin flex-shrink-0" />
       Analizando texto...
     </div>
@@ -21,7 +21,7 @@ export default function GrammarPanel({ matches, checking, onFix, onDismiss }: Gr
     <div className="p-4 text-center">
       <div className="text-2xl mb-2">✓</div>
       <p className="text-green-500 text-xs font-medium">Sin errores detectados</p>
-      <p className="text-white/40 text-xs mt-1">El texto cumple las revisiones de LanguageTool</p>
+      <p className="text-brand-200 text-xs mt-1">El texto cumple las revisiones de LanguageTool</p>
     </div>
   )
 
@@ -40,7 +40,7 @@ export default function GrammarPanel({ matches, checking, onFix, onDismiss }: Gr
         {Object.entries(grouped).map(([cat, items]) => (
           <span key={cat} className={cn(
             'text-xs px-2 py-0.5 rounded-full border font-medium',
-            CATEGORY_COLORS[cat] ?? 'text-brand-400 bg-brand-800 border-brand-700'
+            CATEGORY_COLORS[cat] ?? 'text-brand-200 bg-brand-800 border-brand-700'
           )}>
             {items.length} {CATEGORY_LABELS[cat] ?? cat}
           </span>
@@ -50,7 +50,7 @@ export default function GrammarPanel({ matches, checking, onFix, onDismiss }: Gr
       {/* Individual matches */}
       {matches.map((match, idx) => {
         const catKey  = getCategoryKey(match)
-        const colors  = CATEGORY_COLORS[catKey] ?? 'text-brand-400 bg-brand-800 border-brand-700'
+        const colors  = CATEGORY_COLORS[catKey] ?? 'text-brand-200 bg-brand-800 border-brand-700'
         const topReps = match.replacements.slice(0, 3)
 
         return (

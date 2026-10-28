@@ -110,7 +110,7 @@ export default function Toolbar({ grammarCount = 0 }: ToolbarProps) {
           </span>
         )}
         {normaLabel && (
-          <span className={cn('hidden md:inline text-xs text-brand-400 italic whitespace-nowrap flex-shrink-0', grammarCount === 0 && 'ml-auto')}>
+          <span className={cn('hidden md:inline text-xs text-brand-600 italic whitespace-nowrap flex-shrink-0', grammarCount === 0 && 'ml-auto')}>
             [NORMA] {normaLabel}
           </span>
         )}
@@ -120,7 +120,7 @@ export default function Toolbar({ grammarCount = 0 }: ToolbarProps) {
       <div className="flex items-stretch overflow-x-auto py-1 px-1 min-h-[52px]">
         {noEditor && (
           <div className="flex items-center px-3">
-            <span className="text-xs text-brand-300 italic">Haz clic en una seccion para comenzar a editar</span>
+            <span className="text-xs text-brand-600 italic">Haz clic en una seccion para comenzar a editar</span>
           </div>
         )}
 
@@ -263,7 +263,7 @@ export default function Toolbar({ grammarCount = 0 }: ToolbarProps) {
                     citas, margenes exactos u otros requisitos especificos
                     de cada universidad pueden variar). */}
                 <span
-                  className="text-xs text-brand-500 px-1 whitespace-nowrap self-center cursor-help"
+                  className="text-xs text-brand-600 px-1 whitespace-nowrap self-center cursor-help"
                   title="Aproximacion visual de la norma (tipografia, tamano, interlineado, alineacion). No sustituye la verificacion del formato exacto que exija tu institucion."
                 >{normaLabel}</span>
               </Group>
@@ -289,7 +289,7 @@ export default function Toolbar({ grammarCount = 0 }: ToolbarProps) {
                     citas, margenes exactos u otros requisitos especificos
                     de cada universidad pueden variar). */}
                 <span
-                  className="text-xs text-brand-500 px-1 whitespace-nowrap self-center cursor-help"
+                  className="text-xs text-brand-600 px-1 whitespace-nowrap self-center cursor-help"
                   title="Aproximacion visual de la norma (tipografia, tamano, interlineado, alineacion). No sustituye la verificacion del formato exacto que exija tu institucion."
                 >{normaLabel}</span>
               </Group>
@@ -302,7 +302,7 @@ export default function Toolbar({ grammarCount = 0 }: ToolbarProps) {
             <Group label="Ortografia y gramatica">
               <Btn label={<i className="ti ti-text-spellcheck text-sm"/>} wide
                 action={forceGrammarCheck} title="Revisar ahora" />
-              <span className="text-xs text-brand-500 px-2 self-center whitespace-nowrap">Revisar ahora</span>
+              <span className="text-xs text-brand-600 px-2 self-center whitespace-nowrap">Revisar ahora</span>
             </Group>
             <Group label="Panel de errores">
               <Btn label={<i className="ti ti-list-details text-sm"/>} wide
