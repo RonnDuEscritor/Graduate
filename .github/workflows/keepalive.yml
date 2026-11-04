@@ -1,36 +1,25 @@
 name: Keep Supabase awake
 
-# Runs every 3 days -- comfortably under Supabase's 7-day inactivity pause
-# threshold on the free plan, with margin in case a run gets skipped/delayed.
 on:
   schedule:
-    - cron: '0 12 */3 * *'
-  workflow_dispatch: {} # lets you trigger it manually from the Actions tab too
+    - cron: '0 */6 * * *'  # cada 6 horas (más seguro)
+  workflow_dispatch: {}
 
 jobs:
-  ping:
+  keepalive:
     runs-on: ubuntu-latest
     steps:
-      - name: Diagnostics (temporary -- safe to remove once this works)
+      - name: Real query to Supabase database
         run: |
-          echo "URL length: ${#SUPABASE_URL} chars"
-          echo "URL starts with: $(echo "$SUPABASE_URL" | cut -c1-30)"
-          echo "Key length: ${#SUPABASE_ANON_KEY} chars"
-          echo ""
-          echo "--- Testing /rest/v1/ (should always respond if the URL/key are correct) ---"
-          curl -s "${SUPABASE_URL}/rest/v1/" \
-            -H "apikey: ${SUPABASE_ANON_KEY}" \
-            -w "\nHTTP %{http_code}\n"
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-
-      - name: Ping Supabase REST API
-        run: |
-          curl -sf "${SUPABASE_URL}/rest/v1/projects?select=id&limit=1" \
-            -H "apikey: ${SUPABASE_ANON_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
-            -o /dev/null -w "HTTP %{http_code}\n"
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          echo "Pinging Supabase database with real query..."
+          RESPONSE=$(curl -sf "${{ secrets.SUPABASE_URL }}/rest/v1/?select=1&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -w "\nHTTP_CODE:%{http_code}" 2>&1)
+          echo "Response: $RESPONSE"
+          
+          # Also ping the auth service
+          curl -sf "${{ secrets.SUPABASE_URL }}/auth/v1/settings" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
