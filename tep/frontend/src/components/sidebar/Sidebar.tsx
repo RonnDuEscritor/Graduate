@@ -26,7 +26,7 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
   const navigate = useNavigate()
   const {
     project, sections, norma, setNorma,
-    revisionIssues, isSaving, lastSaved,
+    revisionIssues, saveStatus, lastSaved,
     activeSectionId, setActiveSection,
     sidebarOpen, setSidebarOpen,
   } = useStore()
@@ -84,7 +84,7 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
         "md:static md:translate-x-0",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <button onClick={() => setSidebarOpen(false)}
+        <button onClick={() => setSidebarOpen(false)} aria-label="Cerrar menu lateral" title="Cerrar menu lateral"
           className="md:hidden absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-lg text-brand-200 hover:text-white hover:bg-white/10 z-10">
           <i className="ti ti-x text-lg" />
         </button>
@@ -145,14 +145,15 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
       {/* Tabs - 5 panels */}
       <div className="flex border-b border-white/10 flex-shrink-0">
         {([
-          { id: "structure", icon: "ti-layout-list",      badge: 0 },
-          { id: "refs",      icon: "ti-books",             badge: 0 },
-          { id: "grammar",   icon: "ti-text-spellcheck",   badge: grammarTotal },
-          { id: "progress",  icon: "ti-chart-bar",         badge: 0 },
-          { id: "academic",  icon: "ti-clipboard-check",   badge: 0 },
+          { id: "structure", icon: "ti-layout-list",      badge: 0, label: "Estructura de la tesis" },
+          { id: "refs",      icon: "ti-books",             badge: 0, label: "Referencias bibliograficas" },
+          { id: "grammar",   icon: "ti-text-spellcheck",   badge: grammarTotal, label: "Revision gramatical" },
+          { id: "progress",  icon: "ti-chart-bar",         badge: 0, label: "Progreso y entrega" },
+          { id: "academic",  icon: "ti-clipboard-check",   badge: 0, label: "Validacion academica" },
         ] as const).map(t => (
           <button key={t.id}
             onClick={() => setTab(t.id as PanelTab)}
+            aria-label={t.label} title={t.label} aria-pressed={tab === t.id}
             className={cn(
               "flex-1 flex items-center justify-center py-2 text-sm border-b-2 transition-all relative",
               tab === t.id ? "text-gold border-gold" : "text-brand-200 border-transparent hover:text-white"
@@ -213,13 +214,23 @@ export default function Sidebar({ grammarMatches = [], activeSectionForGrammar }
 
       {/* Status */}
       <div className="px-3.5 py-2 border-t border-white/10 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-1.5">
-          <span className={cn("w-1.5 h-1.5 rounded-full", isSaving ? "bg-gold animate-pulse" : "bg-green-400")} />
-          <span className="text-brand-200 text-xs">
-            {isSaving ? "Guardando..." : lastSaved ? relativeTime(lastSaved) : "Listo"}
+        {/* Auditoria integral: cuatro estados explicitos en vez de solo
+            "Guardando"/"Listo". role="status" + aria-live para que un lector
+            de pantalla anuncie el cambio; el color nunca es la unica pista
+            (siempre hay texto). */}
+        <div className="flex items-center gap-1.5" role="status" aria-live="polite">
+          <span aria-hidden="true" className={cn("w-2 h-2 rounded-full",
+            saveStatus === 'saving'  ? "bg-gold animate-pulse" :
+            saveStatus === 'offline' ? "bg-amber-400" :
+            saveStatus === 'error'   ? "bg-red-400" : "bg-green-400")} />
+          <span className={cn("text-xs", saveStatus === 'error' ? "text-red-300 font-medium" : saveStatus === 'offline' ? "text-amber-300 font-medium" : "text-brand-200")}>
+            {saveStatus === 'saving'  ? "Guardando..." :
+             saveStatus === 'offline' ? "Sin conexion: se guardara al volver" :
+             saveStatus === 'error'   ? "Error al guardar: reintentando" :
+             lastSaved ? "Guardado " + relativeTime(lastSaved) : "Listo"}
           </span>
         </div>
-        <button onClick={signOut} className="text-brand-200 hover:text-gold text-xs transition-colors">
+        <button onClick={signOut} aria-label="Cerrar sesion" title="Cerrar sesion" className="text-brand-200 hover:text-gold text-xs transition-colors">
           <i className="ti ti-logout text-sm" />
         </button>
       </div>

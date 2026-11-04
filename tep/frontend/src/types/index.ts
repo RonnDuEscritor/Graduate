@@ -211,6 +211,8 @@ export interface PBVersion {
 }
 
 // ── TIPTAP ───────────────────────────────────────────────────
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'offline' | 'error'
+
 export interface TiptapDoc  { type: 'doc'; content: TiptapNode[] }
 export interface TiptapNode {
   type: string; attrs?: Record<string, unknown>
@@ -235,6 +237,9 @@ export interface AppState {
   revisionIssues:  RevisionIssue[]
   isSaving:        boolean
   lastSaved:       Date | null
+  // Auditoria integral: estados explicitos de guardado (Guardando /
+  // Guardado / Sin conexion / Error al guardar) en vez de solo un booleano.
+  saveStatus:      SaveStatus
   sidebarOpen:     boolean
 }
 

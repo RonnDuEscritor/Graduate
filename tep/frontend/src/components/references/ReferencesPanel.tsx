@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useStore } from '@/store'
 import { buildCiteText, lookupDOI, formatRef, cn, friendlyError } from '@/lib/utils'
 import type { PBReference, RefType } from '@/types'
+import { notify, confirmAction } from '@/lib/notify'
 
 const EMPTY_FORM = (): Omit<PBReference, 'id'|'created'|'updated'|'project'> => ({
   author:'', initial:'', year:'', ref_type:'libro', title:'',
@@ -33,13 +34,13 @@ export default function ReferencesPanel() {
     setDoiLoading(true)
     const data = await lookupDOI(doiQuery)
     if (data) setForm(f => ({ ...f, ...data }))
-    else alert('No se encontró la referencia. Verifica el DOI.')
+    else notify('No se encontró la referencia. Verifica el DOI.', 'error')
     setDoiLoading(false)
   }
 
   const save = async () => {
     if (!project || !form.author || !form.year || !form.title) {
-      alert('Autor, año y título son obligatorios.'); return
+      notify('Autor, año y título son obligatorios.', 'error'); return
     }
     setSaving(true)
     try {
@@ -57,19 +58,19 @@ export default function ReferencesPanel() {
         upsertReference(created)
       }
       setShowForm(false)
-    } catch (e) { alert(friendlyError(e, 'No se pudo guardar la referencia. Intenta de nuevo.')) }
+    } catch (e) { notify(friendlyError(e, 'No se pudo guardar la referencia. Intenta de nuevo.'), 'error') }
     setSaving(false)
   }
 
   const remove = async (id: string) => {
-    if (!confirm('¿Eliminar esta referencia?')) return
+    if (!(await confirmAction('¿Eliminar esta referencia? Las citas que la usen perderán su vínculo.', { title: 'Eliminar referencia', confirmLabel: 'Eliminar', danger: true }))) return
     const { error } = await supabase.from('bibliography').delete().eq('id', id)
-    if (error) { alert(friendlyError(error, 'No se pudo eliminar la referencia. Intenta de nuevo.')); return }
+    if (error) { notify(friendlyError(error, 'No se pudo eliminar la referencia. Intenta de nuevo.'), 'error'); return }
     removeReference(id)
   }
 
   const insertCite = async (ref: PBReference) => {
-    if (!activeSectionId) { alert('Haz clic en una sección del editor primero.'); return }
+    if (!activeSectionId) { notify('Haz clic en una sección del editor primero.', 'info'); return }
 
     // Audit 2.1 fix (GRAVE): this used to write the `citations` row here,
     // directly, before touching the editor at all -- a second source of
@@ -124,10 +125,10 @@ export default function ReferencesPanel() {
               )}
             </button>
             <div className="flex gap-1 flex-shrink-0">
-              <button onClick={() => openEdit(r)} className="text-brand-200 hover:text-white text-xs p-0.5">
+              <button onClick={() => openEdit(r)} aria-label={`Editar referencia: ${r.title}`} title="Editar referencia" className="text-brand-200 hover:text-white text-xs p-1">
                 <i className="ti ti-pencil" />
               </button>
-              <button onClick={() => remove(r.id)} className="text-brand-200 hover:text-red-400 text-xs p-0.5">
+              <button onClick={() => remove(r.id)} aria-label={`Eliminar referencia: ${r.title}`} title="Eliminar referencia" className="text-brand-200 hover:text-red-400 text-xs p-1">
                 <i className="ti ti-trash" />
               </button>
             </div>

@@ -146,9 +146,31 @@
 }
 .ribbon-group:last-child { border-right: none; }
 .ribbon-group-label {
-  font-size: 10px; font-weight: 600; color: #7D1A31; text-align: center; text-transform: uppercase;
+  font-size: 11px; font-weight: 600; color: #7D1A31; text-align: center; text-transform: uppercase;
   letter-spacing: .04em; margin-top: 2px;
 }
 
 /* Contraste alto en campos de formulario (todos los inputs viven sobre fondo oscuro) */
 input::placeholder, textarea::placeholder { color: #CB8698; opacity: 1; }
+
+/* ── Accesibilidad (auditoria integral, 5.2 y 5.5) ─────────────────────────
+   Foco visible en TODOS los controles al navegar con teclado. Anillo doble
+   (blanco interior + granate exterior) para que se distinga tanto sobre las
+   superficies oscuras (anillo blanco ~18:1) como sobre las claras (anillo
+   granate ~10:1). !important porque varios inputs usan `outline-none`. */
+:focus-visible {
+  outline: 2px solid #FFFFFF !important;
+  outline-offset: 0 !important;
+  box-shadow: 0 0 0 4px #7D1A31 !important;
+}
+.tiptap:focus-visible { outline: none !important; box-shadow: none !important; } /* el editor ya muestra el cursor de texto */
+
+/* Respeta la preferencia del sistema "reducir movimiento". */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

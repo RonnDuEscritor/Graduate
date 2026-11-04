@@ -37,6 +37,8 @@ export default function Toolbar({ grammarCount = 0 }: ToolbarProps) {
     <button
       onClick={action}
       title={title}
+      aria-label={title || undefined}
+      aria-pressed={active}
       disabled={disabled}
       className={cn(
         'flex items-center justify-center rounded-md border transition-all text-xs font-medium select-none disabled:opacity-30 disabled:cursor-not-allowed',

@@ -102,7 +102,7 @@ export default function EditorPage() {
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-brand-100 flex-shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <button onClick={() => setSidebarOpen(true)}
+            <button onClick={() => setSidebarOpen(true)} aria-label="Abrir menu lateral" title="Abrir menu lateral"
               className="md:hidden w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg text-brand-700 hover:bg-brand-50">
               <i className="ti ti-menu-2 text-lg" />
             </button>
@@ -112,7 +112,7 @@ export default function EditorPage() {
           <div className="flex items-center gap-2 md:gap-3">
             {/* Zoom -- hidden on mobile, not enough room and pinch-zoom works fine */}
             <div className="hidden md:flex items-center gap-1 bg-brand-50 rounded-lg px-1 py-0.5">
-              <button onClick={() => setZoomIdx(i => Math.max(0, i - 1))}
+              <button onClick={() => setZoomIdx(i => Math.max(0, i - 1))} aria-label="Reducir zoom" title="Reducir zoom"
                 disabled={zoomIdx === 0}
                 className="w-6 h-6 flex items-center justify-center rounded text-brand-700 hover:bg-white disabled:opacity-30 transition-all">
                 <i className="ti ti-minus text-xs" />
@@ -120,12 +120,12 @@ export default function EditorPage() {
               <span className="text-xs text-brand-700 w-10 text-center select-none">
                 {Math.round(zoom * 100)}%
               </span>
-              <button onClick={() => setZoomIdx(i => Math.min(ZOOM_LEVELS.length - 1, i + 1))}
+              <button onClick={() => setZoomIdx(i => Math.min(ZOOM_LEVELS.length - 1, i + 1))} aria-label="Aumentar zoom" title="Aumentar zoom"
                 disabled={zoomIdx === ZOOM_LEVELS.length - 1}
                 className="w-6 h-6 flex items-center justify-center rounded text-brand-700 hover:bg-white disabled:opacity-30 transition-all">
                 <i className="ti ti-plus text-xs" />
               </button>
-              <button onClick={() => setZoomIdx(3)} title="Restablecer zoom"
+              <button onClick={() => setZoomIdx(3)} title="Restablecer zoom" aria-label="Restablecer zoom"
                 className="w-6 h-6 flex items-center justify-center rounded text-brand-700 hover:bg-white transition-all">
                 <i className="ti ti-zoom-reset text-xs" />
               </button>

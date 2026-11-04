@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
 import { saveDraftLocally, clearLocalDraft } from '@/lib/localDraftBackup'
+import { backoffDelay } from '@/lib/retry'
 import type { AppState, PBProject, PBSection, PBReference, PBCitation, RevisionIssue, NormaType, TiptapDoc } from '@/types'
 
 // Module-level (not reactive state -- pure bookkeeping for the per-section
@@ -12,12 +13,45 @@ const pendingPayloads = new Map<string, { content: TiptapDoc, wordCount: number 
 // Audit P1 5.10 fix (files4 31/08/2026, GRAVE): see setNorma below.
 let normaUpdateTimer: ReturnType<typeof setTimeout> | null = null
 
+// Auditoria integral -- "Guardado y recuperacion robustos": cuantos
+// intentos consecutivos ha fallado el guardado de cada seccion (alimenta el
+// backoff exponencial de backoffDelay en lib/retry.ts).
+const failedAttempts = new Map<string, number>()
+
+function isOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
 function flushSection(sectionId: string, set: (partial: Partial<AppState>) => void): Promise<void> {
   const payload = pendingPayloads.get(sectionId)
   pendingTimers.delete(sectionId)
   pendingPayloads.delete(sectionId)
   if (!payload) return Promise.resolve()
-  set({ isSaving: true })
+
+  // Re-encola el contenido que no pudo guardarse, SIN pisar una edicion mas
+  // reciente (si el usuario siguio escribiendo, ya hay un payload nuevo con
+  // su propio temporizador) y programa un reintento con backoff.
+  const requeue = (immediate: boolean) => {
+    if (!pendingPayloads.has(sectionId)) pendingPayloads.set(sectionId, payload)
+    if (!pendingTimers.has(sectionId)) {
+      const attempts = (failedAttempts.get(sectionId) ?? 0) + 1
+      failedAttempts.set(sectionId, attempts)
+      // Sin conexion no tiene sentido martillar: se espera al evento
+      // `online` (App.tsx lo dispara) y, como red de seguridad, se reintenta
+      // con backoff igualmente.
+      pendingTimers.set(sectionId, setTimeout(() => flushSection(sectionId, set), immediate ? 0 : backoffDelay(attempts)))
+    }
+  }
+
+  if (isOffline()) {
+    // El borrador local ya esta a salvo (saveDraftLocally se escribe antes
+    // de llegar aqui); solo se informa y se conserva el contenido pendiente.
+    requeue(false)
+    set({ isSaving: false, saveStatus: 'offline' })
+    return Promise.resolve()
+  }
+
+  set({ isSaving: true, saveStatus: 'saving' })
   // Audit P1 item 13 follow-up: returns the promise chain (previously
   // fire-and-forget) so callers -- specifically signOut() in
   // hooks/useAuth.ts -- can await the write actually finishing before
@@ -35,12 +69,22 @@ function flushSection(sectionId: string, set: (partial: Partial<AppState>) => vo
         // Audit 7.1/8.1: on a failed write we deliberately KEEP the local
         // draft (instead of clearing it) so the content survives a lost
         // connection or a Supabase outage and can still be recovered/retried
-        // the next time this project loads.
+        // the next time this project loads. Ahora ademas se reintenta solo.
         console.error('Save error:', error)
-        set({ isSaving: false })
+        requeue(false)
+        set({ isSaving: false, saveStatus: isOffline() ? 'offline' : 'error' })
       } else {
+        failedAttempts.delete(sectionId)
         clearLocalDraft(sectionId) // server now has this content -- the local backstop is no longer needed
-        set({ isSaving: false, lastSaved: new Date() })
+        // Si quedan otras secciones pendientes el estado sigue siendo
+        // "guardando"; solo pasa a "guardado" cuando la cola se vacia.
+        const stillPending = pendingPayloads.size > 0
+        const stillFailing = failedAttempts.size > 0
+        set({
+          isSaving: stillPending && !stillFailing,
+          saveStatus: stillFailing ? (isOffline() ? 'offline' : 'error') : stillPending ? 'saving' : 'saved',
+          lastSaved: new Date(),
+        })
       }
     }))
 }
@@ -84,7 +128,7 @@ export const useStore = create<AppState & Actions>((set, get) => ({
   // ── STATE ────────────────────────────────────────────────
   project: null, sections: [], references: [], citations: [],
   activeSectionId: null, norma: 'libre', revisionIssues: [],
-  isSaving: false, lastSaved: null, sidebarOpen: false,
+  isSaving: false, lastSaved: null, saveStatus: 'idle', sidebarOpen: false,
 
   // ── SETTERS ──────────────────────────────────────────────
   setProject:       (project)  => set({ project }),
@@ -156,7 +200,11 @@ export const useStore = create<AppState & Actions>((set, get) => ({
   // before wiping local drafts, instead of firing-and-forgetting.
   flushPendingSaves: () => {
     const flushes: Promise<void>[] = []
-    pendingTimers.forEach((timer, sectionId) => {
+    // Se recorre una COPIA: flushSection puede volver a insertar la misma
+    // clave en pendingTimers (reintento tras un fallo o sin conexion), y
+    // Map.forEach visita las entradas agregadas durante la iteracion -- sin
+    // la copia, estar offline provocaria un bucle infinito.
+    Array.from(pendingTimers.entries()).forEach(([sectionId, timer]) => {
       clearTimeout(timer)
       flushes.push(flushSection(sectionId, set))
     })

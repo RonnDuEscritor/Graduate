@@ -5,6 +5,8 @@ import { formatRef, escapeHtml, estimatePageRanges, hasRealTiptapContent, collec
 import type { CaptionedItem, PageRange } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import type { PBSection, TiptapNode, NormaType } from '@/types'
+import { notify } from '@/lib/notify'
+import { buildBackup, backupFileName } from '@/lib/backup'
 
 // Audit "files2" (27/08/2026) P0 4.1/4.2 fix: this used to be computed
 // twice, once inline in buildHTMLDoc (PDF) and once inline in
@@ -305,7 +307,7 @@ ${bodyHTML}${bibHTML}
     setLoading(true)
     const html = buildHTMLDoc()
     const w = window.open('', '_blank', 'width=900,height=750')
-    if (!w) { alert('Permite ventanas emergentes para exportar.'); setLoading(false); return }
+    if (!w) { notify('Permite ventanas emergentes para exportar.', 'error'); setLoading(false); return }
     w.document.write(html)
     w.document.close()
     w.onload = () => { w.focus(); setTimeout(() => { w.print(); setLoading(false) }, 500) }
@@ -441,6 +443,25 @@ ${bodyHTML}${bibHTML}
     }
   }
 
+  // Auditoria integral: respaldo descargable (JSON) de todo el proyecto, para
+  // conservar una copia fuera de la plataforma.
+  const downloadBackup = () => {
+    if (!project) return
+    try {
+      const backup = buildBackup(project, sections, references, citations)
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = backupFileName(project.title)
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      notify('Respaldo descargado. Guardalo en un lugar seguro.', 'success')
+    } catch (e) {
+      console.error('Backup error:', e)
+      notify('No se pudo generar el respaldo.', 'error')
+    }
+  }
+
   const done  = sections.filter(s => s.word_count > 0).length
   const total = sections.length
 
@@ -476,6 +497,14 @@ ${bodyHTML}${bibHTML}
             <div className="text-left">
               <div>Exportar Word (.docx)</div>
               <div className="text-xs text-brand-200 font-normal">Documento real editable, con indice automatico</div>
+            </div>
+          </button>
+          <button onClick={downloadBackup}
+            className="w-full flex items-center gap-3 bg-brand-800/40 hover:bg-brand-800/70 border border-brand-200/30 rounded-xl px-4 py-3 text-sm text-brand-100 font-medium transition-all">
+            <i className="ti ti-database-export text-xl" aria-hidden="true" />
+            <div className="text-left">
+              <div>Descargar respaldo (.json)</div>
+              <div className="text-xs text-brand-200 font-normal">Copia de seguridad de secciones, referencias y citas</div>
             </div>
           </button>
         </div>

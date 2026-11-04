@@ -1,4 +1,5 @@
 import { useStore } from '@/store'
+import { computeReadiness } from '@/lib/readiness'
 import { TIPOS_TESIS } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -73,7 +74,7 @@ function extractText(content: object | null): string {
 }
 
 export default function ProgressPanel() {
-  const { project, sections } = useStore()
+  const { project, sections, references, citations } = useStore()
   if (!project) return null
 
   const tipo = TIPOS_TESIS[project.tipo]
@@ -164,6 +165,35 @@ export default function ProgressPanel() {
           </div>
         )
       })()}
+
+      <ReadinessReport />
+    </div>
+  )
+}
+
+// Auditoria integral (6.2): informe de preparacion para la entrega con tres
+// grupos. El de "No comprobado" siempre se muestra: las comprobaciones
+// automaticas son ayudas, no una certificacion academica.
+function ReadinessReport() {
+  const { project, sections, references, citations } = useStore()
+  if (!project) return null
+  const report = computeReadiness(project, sections, references, citations)
+  const Group = ({ title, icon, tone, items, empty }: { title: string, icon: string, tone: string, items: { id: string, text: string }[], empty?: string }) => (
+    <section className={'rounded-xl border p-2.5 ' + tone} aria-label={title}>
+      <h3 className="text-xs font-semibold text-brand-50 mb-1.5 flex items-center gap-1.5">
+        <i className={'ti ' + icon} aria-hidden="true" /> {title} <span className="text-brand-200 font-normal">({items.length})</span>
+      </h3>
+      {items.length === 0
+        ? <p className="text-xs text-brand-200">{empty}</p>
+        : <ul className="space-y-1.5 list-disc pl-4 text-xs text-brand-100">{items.map(i => <li key={i.id}>{i.text}</li>)}</ul>}
+    </section>
+  )
+  return (
+    <div className="flex flex-col gap-2 mt-1">
+      <p className="text-xs font-semibold text-brand-50 uppercase tracking-wide">Preparacion para la entrega</p>
+      <Group title="Errores a corregir" icon="ti-alert-triangle" tone="border-red-300/50 bg-red-950/30" items={report.errors} empty="No se detectaron errores automaticos." />
+      <Group title="Recomendaciones" icon="ti-bulb" tone="border-amber-300/50 bg-amber-950/20" items={report.recommendations} empty="Sin recomendaciones pendientes." />
+      <Group title="No comprobado por la aplicacion" icon="ti-eye-question" tone="border-brand-200/40 bg-brand-800/40" items={report.unchecked} />
     </div>
   )
 }

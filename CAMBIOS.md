@@ -1023,3 +1023,71 @@ alto (>= 10:1 en texto secundario) en todas las superficies:
 Verificado: build limpio (tsc + vite build) y medicion de contraste real
 sobre la pantalla de login renderizada con Chromium headless: el texto mas
 tenue mide 10.2:1.
+
+## Decimotercer pase -- Auditoria integral de Graduate Pro (hoja de ruta)
+
+Esta auditoria es una hoja de ruta de producto (no una lista de defectos) y
+ella misma pide consolidar fiabilidad y legibilidad antes de anadir
+funciones. Se aplico lo que se podia hacer de forma segura y comprobable;
+lo demas queda explicitamente pendiente (ver al final).
+
+### Fase 1 -- Fiabilidad
+53. Guardado con estados explicitos y reintentos. `flushSection` (store)
+    ahora distingue Guardando / Guardado / Sin conexion / Error, conserva
+    el borrador local si falla y reintenta solo con backoff exponencial
+    (1 s, 2 s, 4 s ... tope 30 s, `lib/retry.ts`) sin pisar una edicion mas
+    reciente. Sin conexion no golpea la red: espera el evento `online`
+    (App.tsx) y guarda al volver. Indicador con `role="status"` en el panel
+    lateral. Hallazgo propio durante el cambio: `flushPendingSaves`
+    recorria un `Map` con `forEach` mientras el reintento reinsertaba la
+    misma clave (bucle infinito estando offline); ahora recorre una copia.
+54. Respaldo descargable (.json) de secciones, referencias y citas desde
+    Exportar (`lib/backup.ts`).
+55. Informe de preparacion para la entrega en el panel de Progreso
+    (`lib/readiness.ts`): errores (secciones vacias, citas huerfanas,
+    bibliografia vacia), recomendaciones (referencias sin citar, norma
+    "Libre", datos de portada faltantes) y un tercer grupo fijo "No
+    comprobado" (paginacion real, plantilla institucional, exactitud de
+    cada referencia, calidad academica): las comprobaciones automaticas
+    son ayudas, no una certificacion.
+
+### Fase 2 -- Diseno y accesibilidad
+56. `alert()`/`confirm()` nativos reemplazados por avisos y dialogos
+    accesibles (`lib/notify.ts` + `components/ui/Notifier.tsx`):
+    `role="alert"/"status"`, dialogo `alertdialog` modal con foco inicial en
+    el boton seguro, Tab atrapado, Escape cancela, devuelve el foco.
+    Cubre referencias, exportar, eliminar proyecto y recuperar borradores.
+57. Foco visible en todos los controles (anillo doble blanco + granate,
+    distinguible en superficies claras y oscuras) y soporte de
+    `prefers-reduced-motion`.
+58. Nombres accesibles en controles solo-icono (cinta, pestanas del panel,
+    zoom, menu, referencias, papelera) y `aria-pressed` en botones de
+    formato. Las tarjetas de proyecto ahora se abren con teclado (Enter/
+    Espacio): antes eran un `div` con `onClick` inaccesible.
+59. Etiqueta de grupo de la cinta de 10 px a 11 px.
+
+### Privacidad (4.1)
+60. El panel de gramatica muestra siempre un aviso explicando que el texto
+    de la seccion se envia a LanguageTool (servicio externo) y que no se
+    envian correo ni otros datos del proyecto.
+
+### Fase 4 -- Pruebas y CI
+61. Vitest (29 pruebas): reintentos/backoff, flujo real de guardado del
+    store con Supabase simulado (exito, fallo -> reintento -> exito, no
+    pisar edicion nueva, offline, sin bucle), utilidades (conteo,
+    contenido real, interpolacion de paginas, tablas/figuras), respaldo,
+    informe de entrega y avisos. Se verifico con una mutacion (desactivar
+    el reintento) que las pruebas de fiabilidad fallan. Paso `npm test`
+    agregado al CI.
+
+### Pendiente (no se aplica en este pase, requiere diseno propio)
+- Paginacion fisica real y coincidencia exacta indices/documento final.
+- Citas como nodos semanticos con id de referencia, pagina y tipo.
+- Motor bibliografico completo por norma; numeracion de tablas y
+  referencias cruzadas; BibTeX/RIS.
+- Historial recuperable de versiones; control de conflictos entre
+  dispositivos; sincronizacion transaccional de citas (RPC).
+- Pruebas end-to-end (Playwright) y pruebas con lector de pantalla real;
+  revision en 320 px; panel de inicio tipo asistente.
+- Archivos heredados (PocketBase, `pb.ts`, IA) viven en el repo de GitHub
+  del usuario, no en este arbol: deben verificarse y eliminarse alli.

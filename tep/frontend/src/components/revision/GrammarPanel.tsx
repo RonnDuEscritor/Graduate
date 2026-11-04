@@ -9,7 +9,7 @@ interface GrammarPanelProps {
   onDismiss: (match: LTMatch) => void
 }
 
-export default function GrammarPanel({ matches, checking, onFix, onDismiss }: GrammarPanelProps) {
+function GrammarPanelBody({ matches, checking, onFix, onDismiss }: GrammarPanelProps) {
   if (checking) return (
     <div className="p-4 flex items-center gap-2 text-brand-200 text-xs">
       <span className="w-3 h-3 border border-white/50 border-t-transparent rounded-full animate-spin flex-shrink-0" />
@@ -65,8 +65,8 @@ export default function GrammarPanel({ matches, checking, onFix, onDismiss }: Gr
               </span>
               <button
                 onClick={() => onDismiss(match)}
-                className="opacity-50 hover:opacity-100 transition-opacity"
-                title="Ignorar este error">
+                className="opacity-70 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                title="Ignorar este error" aria-label="Ignorar este error">
                 <i className="ti ti-x text-xs" />
               </button>
             </div>
@@ -92,5 +92,40 @@ export default function GrammarPanel({ matches, checking, onFix, onDismiss }: Gr
         )
       })}
     </div>
+  )
+}
+
+// Auditoria integral (4.1 Privacidad): "informar al estudiante cuando el
+// texto se envia a LanguageTool y que datos salen del entorno de la
+// aplicacion". Visible siempre que se abre este panel, en cualquier estado.
+function PrivacyNote() {
+  return (
+    <details className="mx-2 mt-2 rounded-lg border border-brand-200/40 bg-brand-800/40 text-xs text-brand-100">
+      <summary className="cursor-pointer px-2.5 py-2 font-medium text-brand-50">
+        <i className="ti ti-shield-lock mr-1" aria-hidden="true" />
+        Privacidad: la revision envia tu texto a un servicio externo
+      </summary>
+      <div className="px-2.5 pb-2.5 space-y-1.5">
+        <p>
+          Para detectar errores, el texto de la seccion que estas editando se envia a traves de
+          tu servidor (Supabase) a <strong>LanguageTool</strong> (api.languagetool.org), un servicio
+          de terceros. Solo se envia el texto de esa seccion y el idioma; no se envian tu correo
+          ni los demas datos del proyecto.
+        </p>
+        <p>
+          Si tu tesis contiene informacion confidencial, evita usar la revision gramatical sobre
+          esas secciones. El resto de la aplicacion funciona sin este servicio.
+        </p>
+      </div>
+    </details>
+  )
+}
+
+export default function GrammarPanel(props: GrammarPanelProps) {
+  return (
+    <>
+      <PrivacyNote />
+      <GrammarPanelBody {...props} />
+    </>
   )
 }

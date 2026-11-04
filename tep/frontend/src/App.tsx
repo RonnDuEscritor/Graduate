@@ -6,6 +6,7 @@ import LoginPage    from '@/pages/LoginPage'
 import DashboardPage from '@/pages/DashboardPage'
 import EditorPage   from '@/pages/EditorPage'
 import NewPasswordPage from '@/pages/NewPasswordPage'
+import Notifier from '@/components/ui/Notifier'
 
 export default function App() {
   const { user, loading, isPasswordRecovery, clearPasswordRecovery } = useAuth()
@@ -20,7 +21,15 @@ export default function App() {
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', flush)
     window.addEventListener('beforeunload', flush)
+    // Auditoria integral: al volver la conexion se reintenta de inmediato lo
+    // que quedo pendiente; al perderla se avisa en el indicador de guardado.
+    const onOnline  = () => { flushPendingSaves() }
+    const onOffline = () => { if (useStore.getState().saveStatus !== 'idle') useStore.setState({ saveStatus: 'offline' }) }
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
     return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('pagehide', flush)
       window.removeEventListener('beforeunload', flush)
@@ -41,15 +50,18 @@ export default function App() {
   // without this check they'd land straight in the dashboard with their OLD
   // password still active and no prompt to actually change it.
   if (isPasswordRecovery) {
-    return <NewPasswordPage onDone={clearPasswordRecovery} />
+    return (<><NewPasswordPage onDone={clearPasswordRecovery} /><Notifier /></>)
   }
 
   return (
+    <>
     <Routes>
       <Route path="/login"         element={!user ? <LoginPage /> : <Navigate to="/" />} />
       <Route path="/"              element={user ? <DashboardPage /> : <Navigate to="/login" />} />
       <Route path="/editor/:id"    element={user ? <EditorPage />   : <Navigate to="/login" />} />
       <Route path="*"              element={<Navigate to="/" />} />
     </Routes>
+    <Notifier />
+    </>
   )
 }

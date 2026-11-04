@@ -169,3 +169,25 @@ archivo de migracion ya aplicado en produccion.
   desplegadas y responden (`supabase functions list`).
 - Revisar que `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` en Vercel
   apunten al proyecto de Supabase correcto (no al de desarrollo).
+
+
+## Pruebas automatizadas
+
+```bash
+cd tep/frontend
+npm test        # vitest run -- 29 pruebas (guardado/reintentos, utilidades, citas, respaldo, informe de entrega)
+```
+
+El flujo de CI (`.github/workflows/ci.yml`) ejecuta typecheck, pruebas y build en cada push/PR.
+
+## Privacidad
+
+La revision gramatical envia el texto de la seccion que se esta editando, a traves de la Edge
+Function `check-grammar`, al servicio externo **LanguageTool** (api.languagetool.org). No se envian
+el correo del usuario ni los demas datos del proyecto. El panel de gramatica muestra este aviso al
+estudiante. Si una tesis contiene informacion confidencial, conviene no usar esa revision.
+
+## Respaldo
+
+Exportar -> "Descargar respaldo (.json)" genera una copia de seguridad del proyecto (secciones,
+referencias y citas) que el estudiante puede conservar fuera de la plataforma.

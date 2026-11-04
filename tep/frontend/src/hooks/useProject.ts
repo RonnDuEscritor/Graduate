@@ -4,6 +4,7 @@ import { useStore } from '@/store'
 import { TIPOS_TESIS } from '@/types'
 import { getLocalDraft, clearLocalDraft } from '@/lib/localDraftBackup'
 import type { PBProject, PBSection, PBReference, PBCitation, TipoTesis, NormaType } from '@/types'
+import { confirmAction } from '@/lib/notify'
 
 export function useProject() {
   const { setProject, setSections, setReferences, setCitations, setNorma } = useStore()
@@ -40,10 +41,11 @@ export function useProject() {
     })
     if (recoverable.length > 0) {
       const names = recoverable.map(s => `- ${s.name}`).join('\n')
-      const restore = confirm(
+      const restore = await confirmAction(
         `Se encontraron cambios sin guardar de una sesion anterior en:\n${names}\n\n` +
         `Es posible que el navegador se haya cerrado antes de terminar de guardar. ` +
-        `Aceptar para RECUPERAR esos cambios, Cancelar para descartarlos y mantener la ultima version guardada.`
+        `Recuperar restaura esos cambios; Descartar mantiene la ultima version guardada.`,
+        { title: 'Recuperar cambios sin guardar', confirmLabel: 'Recuperar', cancelLabel: 'Descartar' }
       )
       const { saveSectionContent } = useStore.getState()
       recoverable.forEach(s => {
